@@ -787,40 +787,25 @@
     // - Losers: round UP toward zero (e.g. -$25.50 -> -$25.00, they pay less)
     // - The difference (cents shaved off) goes to the host
     function getGameResultsWithRake(results) {
+      // Round ALL non-host players down (floor) to nearest dollar per game.
+      //   Winner +$46.15 → +$46.00  (loses 15c)
+      //   Loser  -$5.50  → -$6.00   (owes extra 50c)
+      // Host rake = sum of rounded losses - sum of rounded wins (always whole dollars)
       const adj = {};
-      let totalBefore = 0;
-      let totalAfter = 0;
+      let othersRoundedTotal = 0;
 
       Object.entries(results).forEach(([player, net]) => {
-        if (player === RAKE_HOST) {
-          adj[player] = net; // host gets adjusted at the end
-          totalBefore += net;
-          return;
-        }
-        let rounded;
-        if (net > 0) {
-          // Winner: floor to nearest 100 cents (dollar)
-          rounded = Math.floor(net / 100) * 100;
-        } else if (net < 0) {
-          // Loser: ceil toward zero (less negative) to nearest 100 cents
-          rounded = Math.ceil(net / 100) * 100;
-        } else {
-          rounded = 0;
-        }
+        if (player === RAKE_HOST) return; // handle host last
+        // Floor everything: positives floor down, negatives floor down (more negative)
+        const rounded = Math.floor(net / 100) * 100;
         adj[player] = rounded;
-        totalBefore += net;
-        totalAfter += rounded;
+        othersRoundedTotal += rounded;
       });
 
-      // Host absorbs the rounding difference
-      if (!adj[RAKE_HOST]) adj[RAKE_HOST] = 0;
-      // totalBefore should be ~0 (zero-sum game), so host's adjusted = host_raw + (totalBefore - host_raw - totalAfter)
-      // Simplifies to: host gets whatever is left to keep it zero-sum with rounded values
-      const othersTotal = totalAfter; // sum of all non-host rounded values
-      const hostRaw = results[RAKE_HOST] || 0;
-      // The full pot is zero-sum, so host's share = -othersTotal
-      // But we want host_original + rake_bonus, where rake_bonus = (-othersTotal) - hostRaw
-      adj[RAKE_HOST] = -(totalAfter); // keeps the game zero-sum; host gets the rounding leftovers
+      // Host gets whatever makes the game zero-sum:
+      // Since raw game is zero-sum, and we floored everyone else,
+      // host = -(sum of everyone else's rounded values)
+      adj[RAKE_HOST] = -othersRoundedTotal;
 
       return adj;
     }
