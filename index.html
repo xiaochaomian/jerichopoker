@@ -1,915 +1,1438 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Jericho Poker Tracker</title>
-<!-- Firebase SDK (compat for simple inline usage) -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-<style>
-  :root {
-    --bg: #0f1117;
-    --surface: #1a1d28;
-    --surface2: #242736;
-    --border: #2e3146;
-    --text: #e2e4ed;
-    --text2: #9496a8;
-    --accent: #6c5ce7;
-    --accent2: #a29bfe;
-    --green: #00b894;
-    --red: #e17055;
-    --gold: #fdcb6e;
-    --radius: 10px;
-  }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
-  header { background:var(--surface); border-bottom:1px solid var(--border); padding:16px 32px; display:flex; justify-content:space-between; align-items:center; }
-  header h1 { font-size:1.4rem; font-weight:700; }
-  header h1 span { color:var(--accent2); }
-  .header-right { display:flex; gap:12px; align-items:center; }
-  .mode-badge { padding:4px 12px; border-radius:20px; font-size:0.75rem; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
-  .mode-badge.viewer { background:rgba(0,184,148,0.15); color:var(--green); }
-  .mode-badge.admin { background:rgba(108,92,231,0.15); color:var(--accent2); }
-  .btn { padding:8px 18px; border-radius:var(--radius); border:none; cursor:pointer; font-size:0.85rem; font-weight:600; transition:all 0.2s; }
-  .btn-primary { background:var(--accent); color:#fff; }
-  .btn-primary:hover { background:#5a4bd1; }
-  .btn-secondary { background:var(--surface2); color:var(--text); border:1px solid var(--border); }
-  .btn-secondary:hover { background:var(--border); }
-  .btn-danger { background:var(--red); color:#fff; }
-  .btn-danger:hover { background:#c0563e; }
-  .btn-success { background:var(--green); color:#fff; }
-  .btn-success:hover { background:#00a382; }
-  .btn-small { padding:5px 12px; font-size:0.78rem; }
-  .btn:disabled { opacity:0.5; cursor:not-allowed; }
-  .container { max-width:1200px; margin:0 auto; padding:24px; }
-  .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:24px; margin-bottom:20px; }
-  .card h2 { font-size:1.1rem; margin-bottom:16px; color:var(--text); }
-  .tabs { display:flex; gap:4px; margin-bottom:24px; background:var(--surface); border-radius:var(--radius); padding:4px; border:1px solid var(--border); width:fit-content; }
-  .tab { padding:8px 20px; border-radius:8px; border:none; background:transparent; color:var(--text2); cursor:pointer; font-size:0.85rem; font-weight:600; transition:all 0.2s; }
-  .tab.active { background:var(--accent); color:#fff; }
-  .tab:hover:not(.active) { color:var(--text); background:var(--surface2); }
-  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex; align-items:center; justify-content:center; z-index:1000; }
-  .modal { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:32px; width:340px; }
-  .modal h2 { text-align:center; margin-bottom:20px; }
-  .modal input { width:100%; padding:10px 14px; border-radius:8px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:0.95rem; margin-bottom:16px; }
-  .modal input:focus { outline:none; border-color:var(--accent); }
-  .modal .btn { width:100%; }
-  .modal-error { color:var(--red); font-size:0.8rem; text-align:center; margin-bottom:12px; }
-  table { width:100%; border-collapse:collapse; }
-  th, td { padding:10px 14px; text-align:left; border-bottom:1px solid var(--border); font-size:0.85rem; }
-  th { color:var(--text2); font-weight:600; font-size:0.78rem; text-transform:uppercase; letter-spacing:0.5px; }
-  tr:hover { background:var(--surface2); }
-  .positive { color:var(--green); font-weight:600; }
-  .negative { color:var(--red); font-weight:600; }
-  .zero { color:var(--text2); }
-  .upload-zone { border:2px dashed var(--border); border-radius:var(--radius); padding:40px; text-align:center; cursor:pointer; transition:all 0.2s; }
-  .upload-zone:hover { border-color:var(--accent); background:rgba(108,92,231,0.05); }
-  .upload-zone.dragover { border-color:var(--accent); background:rgba(108,92,231,0.1); }
-  .upload-zone p { color:var(--text2); margin-top:8px; font-size:0.85rem; }
-  .upload-zone .icon { font-size:2rem; margin-bottom:8px; }
-  .mapping-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); }
-  .mapping-row:last-child { border-bottom:none; }
-  .mapping-nickname { font-weight:600; min-width:140px; color:var(--gold); }
-  .mapping-arrow { color:var(--text2); }
-  select { padding:8px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:0.85rem; min-width:180px; }
-  select:focus { outline:none; border-color:var(--accent); }
-  .stats-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:24px; }
-  .stat-card { background:var(--surface2); border-radius:var(--radius); padding:16px; text-align:center; }
-  .stat-card .label { font-size:0.75rem; color:var(--text2); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; }
-  .stat-card .value { font-size:1.5rem; font-weight:700; }
-  .chart-container { position:relative; width:100%; overflow-x:auto; }
-  .bar-chart { display:flex; align-items:flex-end; gap:6px; min-height:220px; padding:20px 0; justify-content:center; }
-  .bar-group { display:flex; flex-direction:column; align-items:center; gap:4px; min-width:50px; }
-  .bar { width:40px; border-radius:4px 4px 0 0; transition:height 0.5s ease; position:relative; }
-  .bar.positive-bar { background:linear-gradient(to top, #00b894, #55efc4); }
-  .bar.negative-bar { background:linear-gradient(to bottom, #e17055, #fab1a0); border-radius:0 0 4px 4px; }
-  .bar-label { font-size:0.7rem; color:var(--text2); text-align:center; max-width:60px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .bar-value { font-size:0.7rem; font-weight:600; }
-  .game-card { background:var(--surface2); border-radius:var(--radius); padding:16px; margin-bottom:12px; }
-  .game-card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
-  .game-card-header h3 { color:var(--text); font-size:0.95rem; margin:0; }
-  .game-date { color:var(--text2); font-size:0.8rem; }
-  .payment-card { display:flex; align-items:center; gap:16px; padding:14px; background:var(--surface2); border-radius:var(--radius); margin-bottom:8px; transition:all 0.2s; }
-  .payment-card.settled { opacity:0.45; background:rgba(0,184,148,0.08); }
-  .payment-from { color:var(--red); font-weight:600; min-width:120px; }
-  .payment-arrow { color:var(--text2); font-size:1.2rem; }
-  .payment-to { color:var(--green); font-weight:600; min-width:120px; }
-  .payment-amount { margin-left:auto; font-weight:700; color:var(--gold); font-size:1.05rem; }
-  .settle-toggle { width:22px; height:22px; border-radius:50%; border:2px solid var(--border); background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:0.75rem; transition:all 0.2s; flex-shrink:0; }
-  .settle-toggle:hover { border-color:var(--green); }
-  .settle-toggle.checked { background:var(--green); border-color:var(--green); color:#fff; }
-  .settled-label { font-size:0.75rem; color:var(--green); font-weight:600; text-transform:uppercase; letter-spacing:0.5px; flex-shrink:0; }
-  .add-player-row { display:flex; gap:8px; margin-top:12px; }
-  .add-player-row input { flex:1; padding:8px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:0.85rem; }
-  .add-player-row input:focus { outline:none; border-color:var(--accent); }
-  .settle-info { font-size:0.82rem; color:var(--text2); margin-bottom:12px; }
-  .rake-info { font-size:0.8rem; color:var(--text2); font-style:italic; margin-top:8px; }
-  .player-tag { display:inline-block; padding:2px 8px; background:var(--surface2); border-radius:4px; font-size:0.78rem; margin:2px; }
-  .hidden { display:none !important; }
-  .sync-indicator { font-size:0.7rem; padding:3px 8px; border-radius:10px; }
-  .sync-indicator.online { background:rgba(0,184,148,0.15); color:var(--green); }
-  .sync-indicator.offline { background:rgba(225,112,85,0.15); color:var(--red); }
-  @media (max-width:768px) {
-    header { padding:12px 16px; flex-direction:column; gap:12px; }
-    .container { padding:16px; }
-    .tabs { width:100%; overflow-x:auto; }
-    .tab { flex:1; text-align:center; font-size:0.78rem; padding:8px 12px; }
-    .mapping-row { flex-direction:column; align-items:flex-start; gap:6px; }
-    .payment-card { flex-wrap:wrap; gap:8px; }
-    .payment-from, .payment-to { min-width:auto; }
-  }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Poker Tracker (jericho)</title>
+  <!-- Firebase SDK (compat for simple inline usage) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d28;
+      --surface2: #242736;
+      --border: #2e3146;
+      --text: #e2e4ed;
+      --text2: #9496a8;
+      --accent: #6c5ce7;
+      --accent2: #a29bfe;
+      --green: #00b894;
+      --red: #e17055;
+      --gold: #fdcb6e;
+      --radius: 10px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    header h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+    }
+
+    header h1 span {
+      color: var(--accent2);
+    }
+
+    .header-right {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .mode-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .mode-badge.viewer {
+      background: rgba(0, 184, 148, 0.15);
+      color: var(--green);
+    }
+
+    .mode-badge.admin {
+      background: rgba(108, 92, 231, 0.15);
+      color: var(--accent2);
+    }
+
+    .btn {
+      padding: 8px 18px;
+      border-radius: var(--radius);
+      border: none;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: #5a4bd1;
+    }
+
+    .btn-secondary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: var(--border);
+    }
+
+    .btn-danger {
+      background: var(--red);
+      color: #fff;
+    }
+
+    .btn-danger:hover {
+      background: #c0563e;
+    }
+
+    .btn-success {
+      background: var(--green);
+      color: #fff;
+    }
+
+    .btn-success:hover {
+      background: #00a382;
+    }
+
+    .btn-small {
+      padding: 5px 12px;
+      font-size: 0.78rem;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .card h2 {
+      font-size: 1.1rem;
+      margin-bottom: 16px;
+      color: var(--text);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 24px;
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 4px;
+      border: 1px solid var(--border);
+      width: fit-content;
+    }
+
+    .tab {
+      padding: 8px 20px;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: var(--text2);
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .tab.active {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .tab:hover:not(.active) {
+      color: var(--text);
+      background: var(--surface2);
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      width: 340px;
+    }
+
+    .modal h2 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .modal input {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      font-size: 0.95rem;
+      margin-bottom: 16px;
+    }
+
+    .modal input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .modal .btn {
+      width: 100%;
+    }
+
+    .modal-error {
+      color: var(--red);
+      font-size: 0.8rem;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+    }
+
+    th {
+      color: var(--text2);
+      font-weight: 600;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    tr:hover {
+      background: var(--surface2);
+    }
+
+    .positive {
+      color: var(--green);
+      font-weight: 600;
+    }
+
+    .negative {
+      color: var(--red);
+      font-weight: 600;
+    }
+
+    .zero {
+      color: var(--text2);
+    }
+
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .upload-zone:hover {
+      border-color: var(--accent);
+      background: rgba(108, 92, 231, 0.05);
+    }
+
+    .upload-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(108, 92, 231, 0.1);
+    }
+
+    .upload-zone p {
+      color: var(--text2);
+      margin-top: 8px;
+      font-size: 0.85rem;
+    }
+
+    .upload-zone .icon {
+      font-size: 2rem;
+      margin-bottom: 8px;
+    }
+
+    .mapping-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .mapping-row:last-child {
+      border-bottom: none;
+    }
+
+    .mapping-nickname {
+      font-weight: 600;
+      min-width: 140px;
+      color: var(--gold);
+    }
+
+    .mapping-arrow {
+      color: var(--text2);
+    }
+
+    select {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      font-size: 0.85rem;
+      min-width: 180px;
+    }
+
+    select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--surface2);
+      border-radius: var(--radius);
+      padding: 16px;
+      text-align: center;
+    }
+
+    .stat-card .label {
+      font-size: 0.75rem;
+      color: var(--text2);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .stat-card .value {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .chart-container {
+      position: relative;
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    .bar-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      min-height: 220px;
+      padding: 20px 0;
+      justify-content: center;
+    }
+
+    .bar-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      min-width: 50px;
+    }
+
+    .bar {
+      width: 40px;
+      border-radius: 4px 4px 0 0;
+      transition: height 0.5s ease;
+      position: relative;
+    }
+
+    .bar.positive-bar {
+      background: linear-gradient(to top, #00b894, #55efc4);
+    }
+
+    .bar.negative-bar {
+      background: linear-gradient(to bottom, #e17055, #fab1a0);
+      border-radius: 0 0 4px 4px;
+    }
+
+    .bar-label {
+      font-size: 0.7rem;
+      color: var(--text2);
+      text-align: center;
+      max-width: 60px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .bar-value {
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+
+    .game-card {
+      background: var(--surface2);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    .game-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .game-card-header h3 {
+      color: var(--text);
+      font-size: 0.95rem;
+      margin: 0;
+    }
+
+    .game-date {
+      color: var(--text2);
+      font-size: 0.8rem;
+    }
+
+    .payment-card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 14px;
+      background: var(--surface2);
+      border-radius: var(--radius);
+      margin-bottom: 8px;
+      transition: all 0.2s;
+    }
+
+    .payment-card.settled {
+      opacity: 0.45;
+      background: rgba(0, 184, 148, 0.08);
+    }
+
+    .payment-from {
+      color: var(--red);
+      font-weight: 600;
+      min-width: 120px;
+    }
+
+    .payment-arrow {
+      color: var(--text2);
+      font-size: 1.2rem;
+    }
+
+    .payment-to {
+      color: var(--green);
+      font-weight: 600;
+      min-width: 120px;
+    }
+
+    .payment-amount {
+      margin-left: auto;
+      font-weight: 700;
+      color: var(--gold);
+      font-size: 1.05rem;
+    }
+
+    .settle-toggle {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .settle-toggle:hover {
+      border-color: var(--green);
+    }
+
+    .settle-toggle.checked {
+      background: var(--green);
+      border-color: var(--green);
+      color: #fff;
+    }
+
+    .settled-label {
+      font-size: 0.75rem;
+      color: var(--green);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      flex-shrink: 0;
+    }
+
+    .add-player-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .add-player-row input {
+      flex: 1;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      font-size: 0.85rem;
+    }
+
+    .add-player-row input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .settle-info {
+      font-size: 0.82rem;
+      color: var(--text2);
+      margin-bottom: 12px;
+    }
+
+    .rake-info {
+      font-size: 0.8rem;
+      color: var(--text2);
+      font-style: italic;
+      margin-top: 8px;
+    }
+
+    .player-tag {
+      display: inline-block;
+      padding: 2px 8px;
+      background: var(--surface2);
+      border-radius: 4px;
+      font-size: 0.78rem;
+      margin: 2px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .sync-indicator {
+      font-size: 0.7rem;
+      padding: 3px 8px;
+      border-radius: 10px;
+    }
+
+    .sync-indicator.online {
+      background: rgba(0, 184, 148, 0.15);
+      color: var(--green);
+    }
+
+    .sync-indicator.offline {
+      background: rgba(225, 112, 85, 0.15);
+      color: var(--red);
+    }
+
+    @media (max-width:768px) {
+      header {
+        padding: 12px 16px;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .container {
+        padding: 16px;
+      }
+
+      .tabs {
+        width: 100%;
+        overflow-x: auto;
+      }
+
+      .tab {
+        flex: 1;
+        text-align: center;
+        font-size: 0.78rem;
+        padding: 8px 12px;
+      }
+
+      .mapping-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+      }
+
+      .payment-card {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .payment-from,
+      .payment-to {
+        min-width: auto;
+      }
+    }
+  </style>
 </head>
+
 <body>
 
-<header>
-  <h1><span>&#9824;</span> Jericho Poker Tracker</h1>
-  <div class="header-right">
-    <span class="sync-indicator online" id="syncBadge">Synced</span>
-    <span class="mode-badge viewer" id="modeBadge">Viewer</span>
-    <button class="btn btn-secondary btn-small" id="loginBtn" onclick="showLogin()">Admin Login</button>
-  </div>
-</header>
-
-<div class="container">
-  <div class="tabs">
-    <button class="tab active" data-tab="dashboard" onclick="switchTab('dashboard', event)">Dashboard</button>
-    <button class="tab" data-tab="games" onclick="switchTab('games', event)">Game History</button>
-    <button class="tab" data-tab="payments" onclick="switchTab('payments', event)">Payments</button>
-    <button class="tab" data-tab="upload" onclick="switchTab('upload', event)" id="uploadTab">Upload Game</button>
-  </div>
-
-  <!-- DASHBOARD -->
-  <div id="tab-dashboard">
-    <div class="stats-grid" id="statsGrid"></div>
-    <div class="card">
-      <h2>Overall Standings</h2>
-      <div class="chart-container" id="overallChart"></div>
-      <table id="standingsTable">
-        <thead><tr><th>Player</th><th>Games</th><th>Total Net</th><th>Best Game</th><th>Worst Game</th><th>Avg/Game</th></tr></thead>
-        <tbody></tbody>
-      </table>
+  <header>
+    <h1><span>&#9824;</span> Jericho Poker Tracker</h1>
+    <div class="header-right">
+      <span class="sync-indicator online" id="syncBadge">Synced</span>
+      <span class="mode-badge viewer" id="modeBadge">Viewer</span>
+      <button class="btn btn-secondary btn-small" id="loginBtn" onclick="showLogin()">Admin Login</button>
     </div>
-  </div>
+  </header>
 
-  <!-- GAMES -->
-  <div id="tab-games" class="hidden">
-    <div class="card">
-      <h2>Game History</h2>
-      <div id="gamesList"></div>
-      <p id="noGames" class="hidden" style="color:var(--text2);text-align:center;padding:40px;">No games recorded yet.</p>
+  <div class="container">
+    <div class="tabs">
+      <button class="tab active" data-tab="dashboard" onclick="switchTab('dashboard', event)">Dashboard</button>
+      <button class="tab" data-tab="games" onclick="switchTab('games', event)">Game History</button>
+      <button class="tab" data-tab="payments" onclick="switchTab('payments', event)">Payments</button>
+      <button class="tab" data-tab="upload" onclick="switchTab('upload', event)" id="uploadTab">Upload Game</button>
     </div>
-  </div>
 
-  <!-- PAYMENTS -->
-  <div id="tab-payments" class="hidden">
-    <div class="card">
-      <h2>Settlement Payments</h2>
-      <div class="settle-info">Minimum payments to settle all debts. Winners over $25 net contribute $1 rake to Michael Jiao (host fee).</div>
-      <div id="paymentsList"></div>
-      <p id="noPayments" class="hidden" style="color:var(--text2);text-align:center;padding:40px;">All settled up!</p>
-      <div style="margin-top:16px;display:flex;gap:8px;" id="settleActions" class="hidden">
-        <button class="btn btn-success" id="settleBtn" onclick="settleMarkedPayments()">Mark Paid as Settled</button>
-        <span style="font-size:0.8rem;color:var(--text2);align-self:center;">Removes all individually-paid transactions permanently.</span>
+    <!-- DASHBOARD -->
+    <div id="tab-dashboard">
+      <div class="stats-grid" id="statsGrid"></div>
+      <div class="card">
+        <h2>Overall Standings</h2>
+        <div class="chart-container" id="overallChart"></div>
+        <table id="standingsTable">
+          <thead>
+            <tr>
+              <th>Player</th>
+              <th>Games</th>
+              <th>Total Net</th>
+              <th>Best Game</th>
+              <th>Worst Game</th>
+              <th>Avg/Game</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- GAMES -->
+    <div id="tab-games" class="hidden">
+      <div class="card">
+        <h2>Game History</h2>
+        <div id="gamesList"></div>
+        <p id="noGames" class="hidden" style="color:var(--text2);text-align:center;padding:40px;">No games recorded yet.
+        </p>
+      </div>
+    </div>
+
+    <!-- PAYMENTS -->
+    <div id="tab-payments" class="hidden">
+      <div class="card">
+        <h2>Settlement Payments</h2>
+        <div class="settle-info">Minimum payments to settle all debts. Rake ($1/game from winners over $25) is already included in each player's net.
+          (database host fee).</div>
+        <div id="paymentsList"></div>
+        <p id="noPayments" class="hidden" style="color:var(--text2);text-align:center;padding:40px;">All settled up!</p>
+        <div style="margin-top:16px;display:flex;gap:8px;" id="settleActions" class="hidden">
+          <button class="btn btn-success" id="settleBtn" onclick="settleMarkedPayments()">Mark Paid as Settled</button>
+          <span style="font-size:0.8rem;color:var(--text2);align-self:center;">Removes all individually-paid
+            transactions permanently.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- UPLOAD -->
+    <div id="tab-upload" class="hidden">
+      <div class="card" id="uploadCard">
+        <h2>Upload PokerNow Ledger</h2>
+        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+          <div class="icon">&#128196;</div>
+          <p>Drop a PokerNow ledger CSV here or click to browse</p>
+          <input type="file" id="fileInput" accept=".csv" style="display:none" onchange="handleFile(this.files[0])">
+        </div>
+      </div>
+
+      <div class="card hidden" id="mappingCard">
+        <h2>Map Nicknames to Players</h2>
+        <p style="font-size:0.83rem;color:var(--text2);margin-bottom:16px;">Assign each PokerNow nickname to a real
+          player.</p>
+        <div id="mappingList"></div>
+        <div style="margin-top:20px;display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn btn-secondary" onclick="cancelUpload()">Cancel</button>
+          <button class="btn btn-primary" onclick="confirmUpload()">Confirm &amp; Save Game</button>
+        </div>
+      </div>
+
+      <div class="card" id="managePlayers" style="display:none;">
+        <h2>Manage Players</h2>
+        <div id="playerList"></div>
+        <div class="add-player-row">
+          <input type="text" id="newPlayerName" placeholder="Add new player name..."
+            onkeydown="if(event.key==='Enter')addPlayer()">
+          <button class="btn btn-primary btn-small" onclick="addPlayer()">Add</button>
+        </div>
+      </div>
+
+      <div class="card" id="dataManagement" style="display:none;">
+        <h2>Data Management</h2>
+        <p style="font-size:0.83rem;color:var(--text2);margin-bottom:16px;">Export/import data as JSON backup.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-secondary" onclick="exportData()">Export JSON</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('importInput').click()">Import
+            JSON</button>
+          <input type="file" id="importInput" accept=".json" style="display:none" onchange="importData(this.files[0])">
+          <button class="btn btn-danger" onclick="clearAllData()" style="margin-left:auto;">Reset All Data</button>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- UPLOAD -->
-  <div id="tab-upload" class="hidden">
-    <div class="card" id="uploadCard">
-      <h2>Upload PokerNow Ledger</h2>
-      <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
-        <div class="icon">&#128196;</div>
-        <p>Drop a PokerNow ledger CSV here or click to browse</p>
-        <input type="file" id="fileInput" accept=".csv" style="display:none" onchange="handleFile(this.files[0])">
-      </div>
-    </div>
-
-    <div class="card hidden" id="mappingCard">
-      <h2>Map Nicknames to Players</h2>
-      <p style="font-size:0.83rem;color:var(--text2);margin-bottom:16px;">Assign each PokerNow nickname to a real player.</p>
-      <div id="mappingList"></div>
-      <div style="margin-top:20px;display:flex;gap:8px;justify-content:flex-end;">
-        <button class="btn btn-secondary" onclick="cancelUpload()">Cancel</button>
-        <button class="btn btn-primary" onclick="confirmUpload()">Confirm &amp; Save Game</button>
-      </div>
-    </div>
-
-    <div class="card" id="managePlayers" style="display:none;">
-      <h2>Manage Players</h2>
-      <div id="playerList"></div>
-      <div class="add-player-row">
-        <input type="text" id="newPlayerName" placeholder="Add new player name..." onkeydown="if(event.key==='Enter')addPlayer()">
-        <button class="btn btn-primary btn-small" onclick="addPlayer()">Add</button>
-      </div>
-    </div>
-
-    <div class="card" id="dataManagement" style="display:none;">
-      <h2>Data Management</h2>
-      <p style="font-size:0.83rem;color:var(--text2);margin-bottom:16px;">Export/import data as JSON backup.</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-secondary" onclick="exportData()">Export JSON</button>
-        <button class="btn btn-secondary" onclick="document.getElementById('importInput').click()">Import JSON</button>
-        <input type="file" id="importInput" accept=".json" style="display:none" onchange="importData(this.files[0])">
-        <button class="btn btn-danger" onclick="clearAllData()" style="margin-left:auto;">Reset All Data</button>
-      </div>
+  <!-- Login Modal -->
+  <div class="modal-overlay hidden" id="loginModal">
+    <div class="modal">
+      <h2>Admin Login</h2>
+      <p class="modal-error hidden" id="loginError">Incorrect PIN</p>
+      <input type="password" id="pinInput" placeholder="Enter PIN..." onkeydown="if(event.key==='Enter')doLogin()">
+      <button class="btn btn-primary" onclick="doLogin()">Login</button>
+      <button class="btn btn-secondary" style="margin-top:8px" onclick="hideLogin()">Cancel</button>
     </div>
   </div>
-</div>
 
-<!-- Login Modal -->
-<div class="modal-overlay hidden" id="loginModal">
-  <div class="modal">
-    <h2>Admin Login</h2>
-    <p class="modal-error hidden" id="loginError">Incorrect PIN</p>
-    <input type="password" id="pinInput" placeholder="Enter PIN..." onkeydown="if(event.key==='Enter')doLogin()">
-    <button class="btn btn-primary" onclick="doLogin()">Login</button>
-    <button class="btn btn-secondary" style="margin-top:8px" onclick="hideLogin()">Cancel</button>
-  </div>
-</div>
+  <script>
+    // ========== FIREBASE SETUP ==========
+    const firebaseConfig = {
+      apiKey: "AIzaSyBso-NVwZ4SxzEMEaOFbGR9dZYkkKRTzoc",
+      authDomain: "jerichopoker-1decb.firebaseapp.com",
+      databaseURL: "https://jerichopoker-1decb-default-rtdb.firebaseio.com",
+      projectId: "jerichopoker-1decb",
+      storageBucket: "jerichopoker-1decb.firebasestorage.app",
+      messagingSenderId: "425246308092",
+      appId: "1:425246308092:web:93235925125bfdabc20979",
+      measurementId: "G-E16Q4DY2R2"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-<script>
-// ========== FIREBASE SETUP ==========
-const firebaseConfig = {
-  apiKey: "AIzaSyBso-NVwZ4SxzEMEaOFbGR9dZYkkKRTzoc",
-  authDomain: "jerichopoker-1decb.firebaseapp.com",
-  databaseURL: "https://jerichopoker-1decb-default-rtdb.firebaseio.com",
-  projectId: "jerichopoker-1decb",
-  storageBucket: "jerichopoker-1decb.firebasestorage.app",
-  messagingSenderId: "425246308092",
-  appId: "1:425246308092:web:93235925125bfdabc20979",
-  measurementId: "G-E16Q4DY2R2"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+    // ========== CONSTANTS ==========
+    const ADMIN_PIN = "112233";
+    const DEFAULT_PLAYERS = [
+      "Michael Jiao", "Vihaan", "Caleb Kao", "Andrew Pang",
+      "Norman Pang", "Stephen Lyu", "Tony Pan", "Romir Sachdev", "Dev Lakhani"
+    ];
+    const RAKE_HOST = "Michael Jiao";
+    const RAKE_THRESHOLD = 2500; // cents — $25 per game
+    const RAKE_PER_WINNER = 100; // cents — $1 per game
 
-// ========== CONSTANTS ==========
-const ADMIN_PIN = "112233";
-const DEFAULT_PLAYERS = [
-  "Michael Jiao", "Vihaan", "Caleb Kao", "Andrew Pang",
-  "Norman Pang", "Stephen Lyu", "Tony Pan", "Romir Sachdev", "Dev Lakhani"
-];
-const RAKE_HOST = "Michael Jiao";
-const RAKE_THRESHOLD = 2500; // cents — $25
-const RAKE_PER_WINNER = 100; // cents — $1
-
-// ========== STATE ==========
-let state = {
-  isAdmin: false,
-  players: [...DEFAULT_PLAYERS],
-  games: [],
-  credits: [],        // { from, to, amount, date } — settled payments that offset balances
-  settledPayments: {}, // "from|to|amount" -> true (individual toggles before batch settle)
-  nickMemory: {},
-};
-
-let currentTab = 'dashboard';
-let firebaseReady = false;
-
-// ========== FIREBASE SYNC ==========
-function dbRef(path) { return db.ref('pokerTracker/' + path); }
-
-function loadFromFirebase() {
-  dbRef('state').on('value', (snapshot) => {
-    const data = snapshot.val();
-    if (data) {
-      state.players = data.players || [...DEFAULT_PLAYERS];
-      state.games = data.games || [];
-      state.credits = data.credits || [];
-      state.settledPayments = data.settledPayments || {};
-      state.nickMemory = data.nickMemory || {};
+    // Apply rake per-game: winners over threshold lose $1, host gains it
+    function getGameResultsWithRake(results) {
+      const adj = { ...results };
+      let rakeTotal = 0;
+      Object.entries(adj).forEach(([player, net]) => {
+        if (player !== RAKE_HOST && net > RAKE_THRESHOLD) {
+          adj[player] -= RAKE_PER_WINNER;
+          rakeTotal += RAKE_PER_WINNER;
+        }
+      });
+      if (!adj[RAKE_HOST]) adj[RAKE_HOST] = 0;
+      adj[RAKE_HOST] += rakeTotal;
+      return adj;
     }
-    firebaseReady = true;
-    updateSyncBadge(true);
-    refreshCurrentTab();
-  }, (err) => {
-    console.error('Firebase read error:', err);
-    updateSyncBadge(false);
-    // Fallback to localStorage
-    loadFromLocalStorage();
-    refreshCurrentTab();
-  });
 
-  // Connection state
-  db.ref('.info/connected').on('value', (snap) => {
-    updateSyncBadge(snap.val() === true);
-  });
-}
+    // ========== STATE ==========
+    let state = {
+      isAdmin: false,
+      players: [...DEFAULT_PLAYERS],
+      games: [],
+      credits: [],        // { from, to, amount, date } — settled payments that offset balances
+      settledPayments: {}, // "from|to|amount" -> true (individual toggles before batch settle)
+      nickMemory: {},
+    };
 
-function saveState() {
-  const payload = {
-    players: state.players,
-    games: state.games,
-    credits: state.credits,
-    settledPayments: state.settledPayments,
-    nickMemory: state.nickMemory,
-  };
-  // Save to Firebase
-  dbRef('state').set(payload).catch((err) => {
-    console.error('Firebase write error:', err);
-    updateSyncBadge(false);
-  });
-  // Also save to localStorage as fallback
-  try { localStorage.setItem('jerichoPoker', JSON.stringify(payload)); } catch(e) {}
-}
+    let currentTab = 'dashboard';
+    let firebaseReady = false;
 
-function loadFromLocalStorage() {
-  try {
-    const s = localStorage.getItem('jerichoPoker');
-    if (s) {
-      const parsed = JSON.parse(s);
-      state.players = parsed.players || [...DEFAULT_PLAYERS];
-      state.games = parsed.games || [];
-      state.credits = parsed.credits || [];
-      state.settledPayments = parsed.settledPayments || {};
-      state.nickMemory = parsed.nickMemory || {};
+    // ========== FIREBASE SYNC ==========
+    function dbRef(path) { return db.ref('pokerTracker/' + path); }
+
+    function loadFromFirebase() {
+      dbRef('state').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          state.players = data.players || [...DEFAULT_PLAYERS];
+          state.games = data.games || [];
+          state.credits = data.credits || [];
+          state.settledPayments = data.settledPayments || {};
+          state.nickMemory = data.nickMemory || {};
+        }
+        firebaseReady = true;
+        updateSyncBadge(true);
+        refreshCurrentTab();
+      }, (err) => {
+        console.error('Firebase read error:', err);
+        updateSyncBadge(false);
+        // Fallback to localStorage
+        loadFromLocalStorage();
+        refreshCurrentTab();
+      });
+
+      // Connection state
+      db.ref('.info/connected').on('value', (snap) => {
+        updateSyncBadge(snap.val() === true);
+      });
     }
-  } catch(e) {}
-}
 
-function updateSyncBadge(online) {
-  const badge = document.getElementById('syncBadge');
-  if (online) {
-    badge.textContent = 'Synced';
-    badge.className = 'sync-indicator online';
-  } else {
-    badge.textContent = 'Offline';
-    badge.className = 'sync-indicator offline';
-  }
-}
+    function saveState() {
+      const payload = {
+        players: state.players,
+        games: state.games,
+        credits: state.credits,
+        settledPayments: state.settledPayments,
+        nickMemory: state.nickMemory,
+      };
+      // Save to Firebase
+      dbRef('state').set(payload).catch((err) => {
+        console.error('Firebase write error:', err);
+        updateSyncBadge(false);
+      });
+      // Also save to localStorage as fallback
+      try { localStorage.setItem('jerichoPoker', JSON.stringify(payload)); } catch (e) { }
+    }
 
-function refreshCurrentTab() {
-  if (currentTab === 'dashboard') renderDashboard();
-  else if (currentTab === 'games') renderGames();
-  else if (currentTab === 'payments') renderPayments();
-  if (state.isAdmin) renderPlayerList();
-}
+    function loadFromLocalStorage() {
+      try {
+        const s = localStorage.getItem('jerichoPoker');
+        if (s) {
+          const parsed = JSON.parse(s);
+          state.players = parsed.players || [...DEFAULT_PLAYERS];
+          state.games = parsed.games || [];
+          state.credits = parsed.credits || [];
+          state.settledPayments = parsed.settledPayments || {};
+          state.nickMemory = parsed.nickMemory || {};
+        }
+      } catch (e) { }
+    }
 
-// ========== AUTH ==========
-function showLogin() {
-  if (state.isAdmin) { logout(); return; }
-  document.getElementById('loginModal').classList.remove('hidden');
-  document.getElementById('pinInput').value = '';
-  document.getElementById('loginError').classList.add('hidden');
-  document.getElementById('pinInput').focus();
-}
-function hideLogin() { document.getElementById('loginModal').classList.add('hidden'); }
-function doLogin() {
-  if (document.getElementById('pinInput').value === ADMIN_PIN) {
-    state.isAdmin = true;
-    hideLogin();
-    updateAuthUI();
-  } else {
-    document.getElementById('loginError').classList.remove('hidden');
-  }
-}
-function logout() { state.isAdmin = false; updateAuthUI(); }
+    function updateSyncBadge(online) {
+      const badge = document.getElementById('syncBadge');
+      if (online) {
+        badge.textContent = 'Synced';
+        badge.className = 'sync-indicator online';
+      } else {
+        badge.textContent = 'Offline';
+        badge.className = 'sync-indicator offline';
+      }
+    }
 
-function updateAuthUI() {
-  const badge = document.getElementById('modeBadge');
-  const btn = document.getElementById('loginBtn');
-  const uploadTab = document.getElementById('uploadTab');
-  const managePlayers = document.getElementById('managePlayers');
-  const dataManagement = document.getElementById('dataManagement');
-  const settleActions = document.getElementById('settleActions');
-  if (state.isAdmin) {
-    badge.textContent = 'Admin'; badge.className = 'mode-badge admin';
-    btn.textContent = 'Logout';
-    uploadTab.style.display = '';
-    if (managePlayers) managePlayers.style.display = '';
-    if (dataManagement) dataManagement.style.display = '';
-    if (settleActions) settleActions.classList.remove('hidden');
-    renderPlayerList();
-  } else {
-    badge.textContent = 'Viewer'; badge.className = 'mode-badge viewer';
-    btn.textContent = 'Admin Login';
-    uploadTab.style.display = 'none';
-    if (managePlayers) managePlayers.style.display = 'none';
-    if (dataManagement) dataManagement.style.display = 'none';
-    if (settleActions) settleActions.classList.add('hidden');
-    if (currentTab === 'upload') {
+    function refreshCurrentTab() {
+      if (currentTab === 'dashboard') renderDashboard();
+      else if (currentTab === 'games') renderGames();
+      else if (currentTab === 'payments') renderPayments();
+      if (state.isAdmin) renderPlayerList();
+    }
+
+    // ========== AUTH ==========
+    function showLogin() {
+      if (state.isAdmin) { logout(); return; }
+      document.getElementById('loginModal').classList.remove('hidden');
+      document.getElementById('pinInput').value = '';
+      document.getElementById('loginError').classList.add('hidden');
+      document.getElementById('pinInput').focus();
+    }
+    function hideLogin() { document.getElementById('loginModal').classList.add('hidden'); }
+    function doLogin() {
+      if (document.getElementById('pinInput').value === ADMIN_PIN) {
+        state.isAdmin = true;
+        hideLogin();
+        updateAuthUI();
+      } else {
+        document.getElementById('loginError').classList.remove('hidden');
+      }
+    }
+    function logout() { state.isAdmin = false; updateAuthUI(); }
+
+    function updateAuthUI() {
+      const badge = document.getElementById('modeBadge');
+      const btn = document.getElementById('loginBtn');
+      const uploadTab = document.getElementById('uploadTab');
+      const managePlayers = document.getElementById('managePlayers');
+      const dataManagement = document.getElementById('dataManagement');
+      const settleActions = document.getElementById('settleActions');
+      if (state.isAdmin) {
+        badge.textContent = 'Admin'; badge.className = 'mode-badge admin';
+        btn.textContent = 'Logout';
+        uploadTab.style.display = '';
+        if (managePlayers) managePlayers.style.display = '';
+        if (dataManagement) dataManagement.style.display = '';
+        if (settleActions) settleActions.classList.remove('hidden');
+        renderPlayerList();
+      } else {
+        badge.textContent = 'Viewer'; badge.className = 'mode-badge viewer';
+        btn.textContent = 'Admin Login';
+        uploadTab.style.display = 'none';
+        if (managePlayers) managePlayers.style.display = 'none';
+        if (dataManagement) dataManagement.style.display = 'none';
+        if (settleActions) settleActions.classList.add('hidden');
+        if (currentTab === 'upload') {
+          document.querySelector('.tab[data-tab="dashboard"]').click();
+        }
+      }
+      renderPayments();
+    }
+
+    // ========== TABS ==========
+    function switchTab(name, evt) {
+      currentTab = name;
+      document.querySelectorAll('[id^="tab-"]').forEach(el => el.classList.add('hidden'));
+      document.getElementById('tab-' + name).classList.remove('hidden');
+      document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+      const src = evt ? evt.target : document.querySelector('.tab[data-tab="' + name + '"]');
+      if (src) src.classList.add('active');
+      if (name === 'dashboard') renderDashboard();
+      if (name === 'games') renderGames();
+      if (name === 'payments') renderPayments();
+    }
+
+    // ========== CSV PARSING ==========
+    let pendingCSV = null;
+
+    function handleFile(file) {
+      if (!file) return;
+      if (!state.isAdmin) { alert('Login as admin to upload games.'); return; }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const parsed = parseCSV(e.target.result);
+        if (!parsed) { alert('Could not parse CSV. Make sure it is a PokerNow ledger.'); return; }
+        pendingCSV = { filename: file.name, data: parsed };
+        showMappingStep(parsed);
+      };
+      reader.readAsText(file);
+    }
+
+    function parseCSV(text) {
+      const lines = text.trim().split('\n');
+      if (lines.length < 2) return null;
+      const header = lines[0].split(',').map(h => h.replace(/"/g, '').trim().toLowerCase());
+      const nickIdx = header.indexOf('player_nickname');
+      const netIdx = header.indexOf('net');
+      const startIdx = header.indexOf('session_start_at');
+      if (nickIdx === -1 || netIdx === -1) return null;
+
+      const playerNets = {};
+      let earliestDate = null;
+      for (let i = 1; i < lines.length; i++) {
+        const cols = parseCSVLine(lines[i]);
+        if (cols.length <= Math.max(nickIdx, netIdx)) continue;
+        const nick = cols[nickIdx].replace(/"/g, '').trim();
+        const net = parseFloat(cols[netIdx]);
+        if (!nick || isNaN(net)) continue;
+        if (!playerNets[nick]) playerNets[nick] = 0;
+        playerNets[nick] += net;
+        if (startIdx !== -1 && cols[startIdx]) {
+          const d = new Date(cols[startIdx].replace(/"/g, ''));
+          if (!earliestDate || d < earliestDate) earliestDate = d;
+        }
+      }
+      return { playerNets, date: earliestDate ? earliestDate.toISOString() : new Date().toISOString() };
+    }
+
+    function parseCSVLine(line) {
+      const result = []; let current = ''; let inQ = false;
+      for (const ch of line) {
+        if (ch === '"') inQ = !inQ;
+        else if (ch === ',' && !inQ) { result.push(current); current = ''; }
+        else current += ch;
+      }
+      result.push(current);
+      return result;
+    }
+
+    // ========== NICKNAME MAPPING ==========
+    function showMappingStep(parsed) {
+      document.getElementById('uploadCard').classList.add('hidden');
+      document.getElementById('mappingCard').classList.remove('hidden');
+      const list = document.getElementById('mappingList');
+      list.innerHTML = '';
+      Object.keys(parsed.playerNets).forEach(nick => {
+        const row = document.createElement('div');
+        row.className = 'mapping-row';
+        const nickLabel = document.createElement('span');
+        nickLabel.className = 'mapping-nickname';
+        nickLabel.textContent = nick;
+        const arrow = document.createElement('span');
+        arrow.className = 'mapping-arrow'; arrow.textContent = '\u2192';
+        const sel = document.createElement('select');
+        sel.dataset.nick = nick;
+        sel.innerHTML = '<option value="">-- Select Player --</option>';
+        state.players.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p; opt.textContent = p; sel.appendChild(opt);
+        });
+        const suggested = suggestPlayer(nick);
+        if (suggested) sel.value = suggested;
+        const netVal = document.createElement('span');
+        const n = parsed.playerNets[nick];
+        netVal.className = n > 0 ? 'positive' : n < 0 ? 'negative' : 'zero';
+        netVal.textContent = (n > 0 ? '+' : '') + formatMoney(n);
+        netVal.style.marginLeft = 'auto'; netVal.style.fontWeight = '600';
+        row.appendChild(nickLabel); row.appendChild(arrow); row.appendChild(sel); row.appendChild(netVal);
+        list.appendChild(row);
+      });
+    }
+
+    function suggestPlayer(nickname) {
+      const ln = nickname.toLowerCase().trim();
+      if (state.nickMemory[ln]) return state.nickMemory[ln];
+      let best = null, bestS = 0;
+      state.players.forEach(p => {
+        const s = fuzzyScore(ln, p.toLowerCase());
+        if (s > bestS && s > 0.4) { bestS = s; best = p; }
+      });
+      return best;
+    }
+
+    function fuzzyScore(nick, player) {
+      if (nick === player) return 1;
+      const fn = player.split(' ')[0].toLowerCase();
+      const ln2 = player.split(' ').slice(-1)[0].toLowerCase();
+      if (fn === nick || ln2 === nick) return 0.95;
+      if (nick.startsWith(fn.substring(0, 3)) && fn.length > 2) return 0.7;
+      if (fn.startsWith(nick.substring(0, 3)) && nick.length > 2) return 0.6;
+      if (nick.includes(fn.substring(0, 4)) && fn.length > 3) return 0.55;
+      if (Math.abs(nick.length - fn.length) <= 2) {
+        let m = 0;
+        for (let i = 0; i < Math.min(nick.length, fn.length); i++) if (nick[i] === fn[i]) m++;
+        const r = m / Math.max(nick.length, fn.length);
+        if (r > 0.5) return r * 0.8;
+      }
+      return 0;
+    }
+
+    function cancelUpload() {
+      pendingCSV = null;
+      document.getElementById('uploadCard').classList.remove('hidden');
+      document.getElementById('mappingCard').classList.add('hidden');
+    }
+
+    function confirmUpload() {
+      if (!pendingCSV) return;
+      const { data, filename } = pendingCSV;
+      const results = {}, nickMap = {};
+      let allMapped = true;
+      Object.keys(data.playerNets).forEach(nick => {
+        const sel = document.querySelector('select[data-nick="' + CSS.escape(nick) + '"]');
+        const player = sel ? sel.value : '';
+        if (!player) { allMapped = false; return; }
+        nickMap[nick] = player;
+        if (!results[player]) results[player] = 0;
+        results[player] += data.playerNets[nick];
+      });
+      if (!allMapped) { alert('Please assign all nicknames to players before saving.'); return; }
+
+      // Remember mappings
+      Object.entries(nickMap).forEach(([nick, player]) => {
+        state.nickMemory[nick.toLowerCase().trim()] = player;
+      });
+
+      const gameDate = new Date(data.date);
+      state.games.push({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        date: data.date,
+        dateStr: gameDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
+        name: filename.replace(/\.csv$/i, '').replace(/ledger_/i, 'Game ').substring(0, 30),
+        results, nickMap,
+      });
+      state.games.sort((a, b) => new Date(a.date) - new Date(b.date));
+      saveState();
+      pendingCSV = null;
+      document.getElementById('uploadCard').classList.remove('hidden');
+      document.getElementById('mappingCard').classList.add('hidden');
+      document.getElementById('fileInput').value = '';
+      alert('Game saved successfully!');
       document.querySelector('.tab[data-tab="dashboard"]').click();
     }
-  }
-  renderPayments();
-}
 
-// ========== TABS ==========
-function switchTab(name, evt) {
-  currentTab = name;
-  document.querySelectorAll('[id^="tab-"]').forEach(el => el.classList.add('hidden'));
-  document.getElementById('tab-' + name).classList.remove('hidden');
-  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
-  const src = evt ? evt.target : document.querySelector('.tab[data-tab="' + name + '"]');
-  if (src) src.classList.add('active');
-  if (name === 'dashboard') renderDashboard();
-  if (name === 'games') renderGames();
-  if (name === 'payments') renderPayments();
-}
-
-// ========== CSV PARSING ==========
-let pendingCSV = null;
-
-function handleFile(file) {
-  if (!file) return;
-  if (!state.isAdmin) { alert('Login as admin to upload games.'); return; }
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const parsed = parseCSV(e.target.result);
-    if (!parsed) { alert('Could not parse CSV. Make sure it is a PokerNow ledger.'); return; }
-    pendingCSV = { filename: file.name, data: parsed };
-    showMappingStep(parsed);
-  };
-  reader.readAsText(file);
-}
-
-function parseCSV(text) {
-  const lines = text.trim().split('\n');
-  if (lines.length < 2) return null;
-  const header = lines[0].split(',').map(h => h.replace(/"/g,'').trim().toLowerCase());
-  const nickIdx = header.indexOf('player_nickname');
-  const netIdx = header.indexOf('net');
-  const startIdx = header.indexOf('session_start_at');
-  if (nickIdx === -1 || netIdx === -1) return null;
-
-  const playerNets = {};
-  let earliestDate = null;
-  for (let i = 1; i < lines.length; i++) {
-    const cols = parseCSVLine(lines[i]);
-    if (cols.length <= Math.max(nickIdx, netIdx)) continue;
-    const nick = cols[nickIdx].replace(/"/g,'').trim();
-    const net = parseFloat(cols[netIdx]);
-    if (!nick || isNaN(net)) continue;
-    if (!playerNets[nick]) playerNets[nick] = 0;
-    playerNets[nick] += net;
-    if (startIdx !== -1 && cols[startIdx]) {
-      const d = new Date(cols[startIdx].replace(/"/g,''));
-      if (!earliestDate || d < earliestDate) earliestDate = d;
+    // ========== PLAYER MANAGEMENT ==========
+    function renderPlayerList() {
+      const list = document.getElementById('playerList');
+      if (!list) return;
+      list.innerHTML = state.players.map(p =>
+        '<span class="player-tag">' + p + ' <span style="cursor:pointer;color:var(--red);margin-left:4px;" onclick="removePlayer(\'' + p.replace(/'/g, "\\'") + '\')">&times;</span></span>'
+      ).join('');
     }
-  }
-  return { playerNets, date: earliestDate ? earliestDate.toISOString() : new Date().toISOString() };
-}
-
-function parseCSVLine(line) {
-  const result = []; let current = ''; let inQ = false;
-  for (const ch of line) {
-    if (ch === '"') inQ = !inQ;
-    else if (ch === ',' && !inQ) { result.push(current); current = ''; }
-    else current += ch;
-  }
-  result.push(current);
-  return result;
-}
-
-// ========== NICKNAME MAPPING ==========
-function showMappingStep(parsed) {
-  document.getElementById('uploadCard').classList.add('hidden');
-  document.getElementById('mappingCard').classList.remove('hidden');
-  const list = document.getElementById('mappingList');
-  list.innerHTML = '';
-  Object.keys(parsed.playerNets).forEach(nick => {
-    const row = document.createElement('div');
-    row.className = 'mapping-row';
-    const nickLabel = document.createElement('span');
-    nickLabel.className = 'mapping-nickname';
-    nickLabel.textContent = nick;
-    const arrow = document.createElement('span');
-    arrow.className = 'mapping-arrow'; arrow.textContent = '\u2192';
-    const sel = document.createElement('select');
-    sel.dataset.nick = nick;
-    sel.innerHTML = '<option value="">-- Select Player --</option>';
-    state.players.forEach(p => {
-      const opt = document.createElement('option');
-      opt.value = p; opt.textContent = p; sel.appendChild(opt);
-    });
-    const suggested = suggestPlayer(nick);
-    if (suggested) sel.value = suggested;
-    const netVal = document.createElement('span');
-    const n = parsed.playerNets[nick];
-    netVal.className = n > 0 ? 'positive' : n < 0 ? 'negative' : 'zero';
-    netVal.textContent = (n > 0 ? '+' : '') + formatMoney(n);
-    netVal.style.marginLeft = 'auto'; netVal.style.fontWeight = '600';
-    row.appendChild(nickLabel); row.appendChild(arrow); row.appendChild(sel); row.appendChild(netVal);
-    list.appendChild(row);
-  });
-}
-
-function suggestPlayer(nickname) {
-  const ln = nickname.toLowerCase().trim();
-  if (state.nickMemory[ln]) return state.nickMemory[ln];
-  let best = null, bestS = 0;
-  state.players.forEach(p => {
-    const s = fuzzyScore(ln, p.toLowerCase());
-    if (s > bestS && s > 0.4) { bestS = s; best = p; }
-  });
-  return best;
-}
-
-function fuzzyScore(nick, player) {
-  if (nick === player) return 1;
-  const fn = player.split(' ')[0].toLowerCase();
-  const ln2 = player.split(' ').slice(-1)[0].toLowerCase();
-  if (fn === nick || ln2 === nick) return 0.95;
-  if (nick.startsWith(fn.substring(0,3)) && fn.length > 2) return 0.7;
-  if (fn.startsWith(nick.substring(0,3)) && nick.length > 2) return 0.6;
-  if (nick.includes(fn.substring(0,4)) && fn.length > 3) return 0.55;
-  if (Math.abs(nick.length - fn.length) <= 2) {
-    let m = 0;
-    for (let i = 0; i < Math.min(nick.length, fn.length); i++) if (nick[i]===fn[i]) m++;
-    const r = m / Math.max(nick.length, fn.length);
-    if (r > 0.5) return r * 0.8;
-  }
-  return 0;
-}
-
-function cancelUpload() {
-  pendingCSV = null;
-  document.getElementById('uploadCard').classList.remove('hidden');
-  document.getElementById('mappingCard').classList.add('hidden');
-}
-
-function confirmUpload() {
-  if (!pendingCSV) return;
-  const { data, filename } = pendingCSV;
-  const results = {}, nickMap = {};
-  let allMapped = true;
-  Object.keys(data.playerNets).forEach(nick => {
-    const sel = document.querySelector('select[data-nick="' + CSS.escape(nick) + '"]');
-    const player = sel ? sel.value : '';
-    if (!player) { allMapped = false; return; }
-    nickMap[nick] = player;
-    if (!results[player]) results[player] = 0;
-    results[player] += data.playerNets[nick];
-  });
-  if (!allMapped) { alert('Please assign all nicknames to players before saving.'); return; }
-
-  // Remember mappings
-  Object.entries(nickMap).forEach(([nick, player]) => {
-    state.nickMemory[nick.toLowerCase().trim()] = player;
-  });
-
-  const gameDate = new Date(data.date);
-  state.games.push({
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
-    date: data.date,
-    dateStr: gameDate.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' }),
-    name: filename.replace(/\.csv$/i,'').replace(/ledger_/i,'Game ').substring(0,30),
-    results, nickMap,
-  });
-  state.games.sort((a, b) => new Date(a.date) - new Date(b.date));
-  saveState();
-  pendingCSV = null;
-  document.getElementById('uploadCard').classList.remove('hidden');
-  document.getElementById('mappingCard').classList.add('hidden');
-  document.getElementById('fileInput').value = '';
-  alert('Game saved successfully!');
-  document.querySelector('.tab[data-tab="dashboard"]').click();
-}
-
-// ========== PLAYER MANAGEMENT ==========
-function renderPlayerList() {
-  const list = document.getElementById('playerList');
-  if (!list) return;
-  list.innerHTML = state.players.map(p =>
-    '<span class="player-tag">' + p + ' <span style="cursor:pointer;color:var(--red);margin-left:4px;" onclick="removePlayer(\'' + p.replace(/'/g,"\\'") + '\')">&times;</span></span>'
-  ).join('');
-}
-function addPlayer() {
-  const input = document.getElementById('newPlayerName');
-  const name = input.value.trim();
-  if (!name) return;
-  if (state.players.includes(name)) { alert('Player already exists.'); return; }
-  state.players.push(name);
-  saveState();
-  renderPlayerList();
-  input.value = '';
-}
-function removePlayer(name) {
-  if (state.games.some(g => g.results[name] !== undefined)) { alert('Cannot remove a player with game history.'); return; }
-  state.players = state.players.filter(p => p !== name);
-  saveState();
-  renderPlayerList();
-}
-
-// ========== DASHBOARD ==========
-function renderDashboard() {
-  const totals = {}, gameCounts = {}, bestGame = {}, worstGame = {};
-  state.players.forEach(p => { totals[p] = 0; gameCounts[p] = 0; bestGame[p] = null; worstGame[p] = null; });
-
-  state.games.forEach(g => {
-    Object.entries(g.results).forEach(([player, net]) => {
-      if (totals[player] === undefined) totals[player] = 0;
-      totals[player] += net;
-      gameCounts[player] = (gameCounts[player] || 0) + 1;
-      if (bestGame[player] === null || net > bestGame[player]) bestGame[player] = net;
-      if (worstGame[player] === null || net < worstGame[player]) worstGame[player] = net;
-    });
-  });
-
-  // Apply credits to totals for display
-  (state.credits || []).forEach(c => {
-    // credit means "from" paid "to" — reduces from's debt and to's surplus
-    // But for overall standings we show game results only, credits are for payment tab
-  });
-
-  const grid = document.getElementById('statsGrid');
-  const totalGames = state.games.length;
-  const totalVolume = Object.values(totals).reduce((s, v) => s + Math.abs(v), 0);
-  const biggestWinner = Object.entries(totals).sort((a, b) => b[1] - a[1])[0];
-  grid.innerHTML =
-    '<div class="stat-card"><div class="label">Total Games</div><div class="value">' + totalGames + '</div></div>' +
-    '<div class="stat-card"><div class="label">Active Players</div><div class="value">' + Object.keys(gameCounts).filter(p=>gameCounts[p]>0).length + '</div></div>' +
-    '<div class="stat-card"><div class="label">Biggest Winner</div><div class="value positive">' + (biggestWinner && biggestWinner[1] > 0 ? biggestWinner[0].split(' ')[0] : '\u2014') + '</div></div>' +
-    '<div class="stat-card"><div class="label">Total Volume</div><div class="value">' + formatMoney(totalVolume / 2) + '</div></div>';
-
-  renderBarChart('overallChart', totals);
-
-  const tbody = document.querySelector('#standingsTable tbody');
-  const sorted = Object.entries(totals).filter(([p]) => gameCounts[p] > 0).sort((a, b) => b[1] - a[1]);
-  tbody.innerHTML = sorted.map(([player, net]) => {
-    const cls = net > 0 ? 'positive' : net < 0 ? 'negative' : 'zero';
-    const avg = gameCounts[player] ? net / gameCounts[player] : 0;
-    return '<tr><td>' + player + '</td><td>' + gameCounts[player] + '</td>' +
-      '<td class="' + cls + '">' + formatMoney(net, true) + '</td>' +
-      '<td class="positive">' + (bestGame[player] !== null ? formatMoney(bestGame[player], true) : '\u2014') + '</td>' +
-      '<td class="negative">' + (worstGame[player] !== null ? formatMoney(worstGame[player], true) : '\u2014') + '</td>' +
-      '<td class="' + (avg > 0 ? 'positive' : avg < 0 ? 'negative' : 'zero') + '">' + formatMoney(avg, true) + '</td></tr>';
-  }).join('');
-}
-
-function renderBarChart(containerId, totals) {
-  const container = document.getElementById(containerId);
-  const entries = Object.entries(totals).filter(([p]) =>
-    state.games.some(g => g.results[p] !== undefined)
-  ).sort((a, b) => b[1] - a[1]);
-  if (!entries.length) { container.innerHTML = '<p style="text-align:center;color:var(--text2);padding:40px;">No data yet</p>'; return; }
-  const maxAbs = Math.max(...entries.map(([_,v]) => Math.abs(v)), 1);
-  const maxH = 160;
-  let html = '<div class="bar-chart">';
-  entries.forEach(([player, net]) => {
-    const h = Math.max(4, (Math.abs(net) / maxAbs) * maxH);
-    const bc = net >= 0 ? 'positive-bar' : 'negative-bar';
-    const vc = net > 0 ? 'positive' : net < 0 ? 'negative' : 'zero';
-    const fn = player.split(' ')[0];
-    if (net >= 0) {
-      html += '<div class="bar-group"><span class="bar-value ' + vc + '">' + formatMoney(net,true) + '</span><div class="bar ' + bc + '" style="height:' + h + 'px"></div><span class="bar-label">' + fn + '</span></div>';
-    } else {
-      html += '<div class="bar-group"><span class="bar-label">' + fn + '</span><div class="bar ' + bc + '" style="height:' + h + 'px"></div><span class="bar-value ' + vc + '">' + formatMoney(net,true) + '</span></div>';
+    function addPlayer() {
+      const input = document.getElementById('newPlayerName');
+      const name = input.value.trim();
+      if (!name) return;
+      if (state.players.includes(name)) { alert('Player already exists.'); return; }
+      state.players.push(name);
+      saveState();
+      renderPlayerList();
+      input.value = '';
     }
-  });
-  html += '</div>';
-  container.innerHTML = html;
-}
+    function removePlayer(name) {
+      if (state.games.some(g => g.results[name] !== undefined)) { alert('Cannot remove a player with game history.'); return; }
+      state.players = state.players.filter(p => p !== name);
+      saveState();
+      renderPlayerList();
+    }
 
-// ========== GAMES ==========
-function renderGames() {
-  const list = document.getElementById('gamesList');
-  const noGames = document.getElementById('noGames');
-  if (!state.games.length) { list.innerHTML = ''; noGames.classList.remove('hidden'); return; }
-  noGames.classList.add('hidden');
-  list.innerHTML = state.games.slice().reverse().map(g => {
-    const sorted = Object.entries(g.results).sort((a,b) => b[1] - a[1]);
-    const delBtn = state.isAdmin ? ' <button class="btn btn-danger btn-small" style="margin-left:8px;" onclick="deleteGame(\'' + g.id + '\')">Delete</button>' : '';
-    return '<div class="game-card"><div class="game-card-header"><h3>' + g.name + '</h3><span class="game-date">' + g.dateStr + delBtn + '</span></div>' +
-      '<table><thead><tr><th>Player</th><th>Nickname</th><th>Net</th></tr></thead><tbody>' +
-      sorted.map(([player, net]) => {
-        const nick = Object.entries(g.nickMap || {}).find(([_,v]) => v === player);
+    // ========== DASHBOARD ==========
+    function renderDashboard() {
+      const totals = {}, gameCounts = {}, bestGame = {}, worstGame = {};
+      state.players.forEach(p => { totals[p] = 0; gameCounts[p] = 0; bestGame[p] = null; worstGame[p] = null; });
+
+      state.games.forEach(g => {
+        const adjResults = getGameResultsWithRake(g.results);
+        Object.entries(adjResults).forEach(([player, net]) => {
+          if (totals[player] === undefined) totals[player] = 0;
+          totals[player] += net;
+          gameCounts[player] = (gameCounts[player] || 0) + 1;
+          if (bestGame[player] === null || net > bestGame[player]) bestGame[player] = net;
+          if (worstGame[player] === null || net < worstGame[player]) worstGame[player] = net;
+        });
+      });
+
+      const grid = document.getElementById('statsGrid');
+      const totalGames = state.games.length;
+      const totalVolume = Object.values(totals).reduce((s, v) => s + Math.abs(v), 0);
+      const biggestWinner = Object.entries(totals).sort((a, b) => b[1] - a[1])[0];
+      grid.innerHTML =
+        '<div class="stat-card"><div class="label">Total Games</div><div class="value">' + totalGames + '</div></div>' +
+        '<div class="stat-card"><div class="label">Active Players</div><div class="value">' + Object.keys(gameCounts).filter(p => gameCounts[p] > 0).length + '</div></div>' +
+        '<div class="stat-card"><div class="label">Biggest Winner</div><div class="value positive">' + (biggestWinner && biggestWinner[1] > 0 ? biggestWinner[0].split(' ')[0] : '\u2014') + '</div></div>' +
+        '<div class="stat-card"><div class="label">Total Volume</div><div class="value">' + formatMoney(totalVolume / 2) + '</div></div>';
+
+      renderBarChart('overallChart', totals);
+
+      const tbody = document.querySelector('#standingsTable tbody');
+      const sorted = Object.entries(totals).filter(([p]) => gameCounts[p] > 0).sort((a, b) => b[1] - a[1]);
+      tbody.innerHTML = sorted.map(([player, net]) => {
         const cls = net > 0 ? 'positive' : net < 0 ? 'negative' : 'zero';
-        return '<tr><td>' + player + '</td><td style="color:var(--text2)">' + (nick ? nick[0] : '\u2014') + '</td><td class="' + cls + '">' + formatMoney(net,true) + '</td></tr>';
-      }).join('') + '</tbody></table></div>';
-  }).join('');
-}
-
-function deleteGame(id) {
-  if (!state.isAdmin) return;
-  if (!confirm('Delete this game? This cannot be undone.')) return;
-  state.games = state.games.filter(g => g.id !== id);
-  saveState();
-  renderGames();
-}
-
-// ========== PAYMENTS / SETTLEMENT ==========
-function calcNetBalances() {
-  const balances = {};
-  // Sum all game results
-  state.games.forEach(g => {
-    Object.entries(g.results).forEach(([player, net]) => {
-      if (!balances[player]) balances[player] = 0;
-      balances[player] += net;
-    });
-  });
-  // Subtract settled credits (a credit from->to means from already paid to)
-  (state.credits || []).forEach(c => {
-    if (!balances[c.from]) balances[c.from] = 0;
-    if (!balances[c.to]) balances[c.to] = 0;
-    balances[c.from] += c.amount; // from owes less (was negative, adding makes it closer to 0)
-    balances[c.to] -= c.amount;   // to is owed less (was positive, subtracting makes it closer to 0)
-  });
-  return balances;
-}
-
-function applyRake(balances) {
-  const adj = { ...balances };
-  let rakeTotal = 0;
-  Object.entries(adj).forEach(([player, net]) => {
-    if (player !== RAKE_HOST && net > RAKE_THRESHOLD) {
-      adj[player] -= RAKE_PER_WINNER;
-      rakeTotal += RAKE_PER_WINNER;
+        const avg = gameCounts[player] ? net / gameCounts[player] : 0;
+        return '<tr><td>' + player + '</td><td>' + gameCounts[player] + '</td>' +
+          '<td class="' + cls + '">' + formatMoney(net, true) + '</td>' +
+          '<td class="positive">' + (bestGame[player] !== null ? formatMoney(bestGame[player], true) : '\u2014') + '</td>' +
+          '<td class="negative">' + (worstGame[player] !== null ? formatMoney(worstGame[player], true) : '\u2014') + '</td>' +
+          '<td class="' + (avg > 0 ? 'positive' : avg < 0 ? 'negative' : 'zero') + '">' + formatMoney(avg, true) + '</td></tr>';
+      }).join('');
     }
-  });
-  if (!adj[RAKE_HOST]) adj[RAKE_HOST] = 0;
-  adj[RAKE_HOST] += rakeTotal;
-  return { adjusted: adj, rakeTotal };
-}
 
-function minimumPayments(balancesRaw) {
-  const { adjusted, rakeTotal } = applyRake(balancesRaw);
-  const balances = {};
-  Object.entries(adjusted).forEach(([p, v]) => {
-    const r = Math.round(v);
-    if (Math.abs(r) > 1) balances[p] = r; // ignore sub-penny
-  });
-
-  const debtors = [], creditors = [];
-  Object.entries(balances).forEach(([player, amount]) => {
-    if (amount < 0) debtors.push({ player, amount: -amount });
-    else if (amount > 0) creditors.push({ player, amount });
-  });
-  debtors.sort((a,b) => b.amount - a.amount);
-  creditors.sort((a,b) => b.amount - a.amount);
-
-  const payments = [];
-  let di = 0, ci = 0;
-  while (di < debtors.length && ci < creditors.length) {
-    const pay = Math.min(debtors[di].amount, creditors[ci].amount);
-    if (pay > 1) {
-      payments.push({ from: debtors[di].player, to: creditors[ci].player, amount: Math.round(pay) });
+    function renderBarChart(containerId, totals) {
+      const container = document.getElementById(containerId);
+      const entries = Object.entries(totals).filter(([p]) =>
+        state.games.some(g => g.results[p] !== undefined)
+      ).sort((a, b) => b[1] - a[1]);
+      if (!entries.length) { container.innerHTML = '<p style="text-align:center;color:var(--text2);padding:40px;">No data yet</p>'; return; }
+      const maxAbs = Math.max(...entries.map(([_, v]) => Math.abs(v)), 1);
+      const maxH = 160;
+      let html = '<div class="bar-chart">';
+      entries.forEach(([player, net]) => {
+        const h = Math.max(4, (Math.abs(net) / maxAbs) * maxH);
+        const bc = net >= 0 ? 'positive-bar' : 'negative-bar';
+        const vc = net > 0 ? 'positive' : net < 0 ? 'negative' : 'zero';
+        const fn = player.split(' ')[0];
+        if (net >= 0) {
+          html += '<div class="bar-group"><span class="bar-value ' + vc + '">' + formatMoney(net, true) + '</span><div class="bar ' + bc + '" style="height:' + h + 'px"></div><span class="bar-label">' + fn + '</span></div>';
+        } else {
+          html += '<div class="bar-group"><span class="bar-label">' + fn + '</span><div class="bar ' + bc + '" style="height:' + h + 'px"></div><span class="bar-value ' + vc + '">' + formatMoney(net, true) + '</span></div>';
+        }
+      });
+      html += '</div>';
+      container.innerHTML = html;
     }
-    debtors[di].amount -= pay;
-    creditors[ci].amount -= pay;
-    if (debtors[di].amount < 1) di++;
-    if (creditors[ci].amount < 1) ci++;
-  }
-  return { payments, rakeTotal };
-}
 
-function paymentKey(p) { return p.from + '|' + p.to + '|' + p.amount; }
-function isPaymentSettled(p) { return !!(state.settledPayments && state.settledPayments[paymentKey(p)]); }
+    // ========== GAMES ==========
+    function renderGames() {
+      const list = document.getElementById('gamesList');
+      const noGames = document.getElementById('noGames');
+      if (!state.games.length) { list.innerHTML = ''; noGames.classList.remove('hidden'); return; }
+      noGames.classList.add('hidden');
+      list.innerHTML = state.games.slice().reverse().map(g => {
+        const adjResults = getGameResultsWithRake(g.results);
+        const sorted = Object.entries(adjResults).sort((a, b) => b[1] - a[1]);
+        const delBtn = state.isAdmin ? ' <button class="btn btn-danger btn-small" style="margin-left:8px;" onclick="deleteGame(\'' + g.id + '\')">Delete</button>' : '';
+        return '<div class="game-card"><div class="game-card-header"><h3>' + g.name + '</h3><span class="game-date">' + g.dateStr + delBtn + '</span></div>' +
+          '<table><thead><tr><th>Player</th><th>Nickname</th><th>Net (incl. rake)</th></tr></thead><tbody>' +
+          sorted.map(([player, net]) => {
+            const nick = Object.entries(g.nickMap || {}).find(([_, v]) => v === player);
+            const cls = net > 0 ? 'positive' : net < 0 ? 'negative' : 'zero';
+            return '<tr><td>' + player + '</td><td style="color:var(--text2)">' + (nick ? nick[0] : '\u2014') + '</td><td class="' + cls + '">' + formatMoney(net, true) + '</td></tr>';
+          }).join('') + '</tbody></table></div>';
+      }).join('');
+    }
 
-function togglePaymentSettled(from, to, amount) {
-  if (!state.isAdmin) return;
-  const key = from + '|' + to + '|' + amount;
-  if (!state.settledPayments) state.settledPayments = {};
-  if (state.settledPayments[key]) delete state.settledPayments[key];
-  else state.settledPayments[key] = true;
-  saveState();
-  renderPayments();
-}
+    function deleteGame(id) {
+      if (!state.isAdmin) return;
+      if (!confirm('Delete this game? This cannot be undone.')) return;
+      state.games = state.games.filter(g => g.id !== id);
+      saveState();
+      renderGames();
+    }
 
-function renderPayments() {
-  const list = document.getElementById('paymentsList');
-  const noPayments = document.getElementById('noPayments');
-  const settleActions = document.getElementById('settleActions');
+    // ========== PAYMENTS / SETTLEMENT ==========
+    function calcNetBalances() {
+      const balances = {};
+      // Sum all game results with rake already applied per-game
+      state.games.forEach(g => {
+        const adjResults = getGameResultsWithRake(g.results);
+        Object.entries(adjResults).forEach(([player, net]) => {
+          if (!balances[player]) balances[player] = 0;
+          balances[player] += net;
+        });
+      });
+      // Subtract settled credits (a credit from->to means from already paid to)
+      (state.credits || []).forEach(c => {
+        if (!balances[c.from]) balances[c.from] = 0;
+        if (!balances[c.to]) balances[c.to] = 0;
+        balances[c.from] += c.amount; // from owes less (was negative, adding makes it closer to 0)
+        balances[c.to] -= c.amount;   // to is owed less (was positive, subtracting makes it closer to 0)
+      });
+      return balances;
+    }
 
-  const balances = calcNetBalances();
-  const { payments, rakeTotal } = minimumPayments(balances);
+    function minimumPayments(balancesRaw) {
+      // Rake is already applied per-game in calcNetBalances
+      const balances = {};
+      Object.entries(balancesRaw).forEach(([p, v]) => {
+        const r = Math.round(v);
+        if (Math.abs(r) > 1) balances[p] = r; // ignore sub-penny
+      });
 
-  if (!payments.length) {
-    list.innerHTML = '';
-    noPayments.classList.remove('hidden');
-    if (settleActions) settleActions.classList.add('hidden');
-    return;
-  }
-  noPayments.classList.add('hidden');
+      const debtors = [], creditors = [];
+      Object.entries(balances).forEach(([player, amount]) => {
+        if (amount < 0) debtors.push({ player, amount: -amount });
+        else if (amount > 0) creditors.push({ player, amount });
+      });
+      debtors.sort((a, b) => b.amount - a.amount);
+      creditors.sort((a, b) => b.amount - a.amount);
 
-  const settledCount = payments.filter(p => isPaymentSettled(p)).length;
-  let rakeHtml = rakeTotal > 0 ? '<p class="rake-info">Host rake: ' + formatMoney(rakeTotal) + ' ($' + (RAKE_PER_WINNER/100) + ' from each winner over $' + (RAKE_THRESHOLD/100) + ' net)</p>' : '';
+      const payments = [];
+      let di = 0, ci = 0;
+      while (di < debtors.length && ci < creditors.length) {
+        const pay = Math.min(debtors[di].amount, creditors[ci].amount);
+        if (pay > 1) {
+          payments.push({ from: debtors[di].player, to: creditors[ci].player, amount: Math.round(pay) });
+        }
+        debtors[di].amount -= pay;
+        creditors[ci].amount -= pay;
+        if (debtors[di].amount < 1) di++;
+        if (creditors[ci].amount < 1) ci++;
+      }
+      return { payments };
+    }
 
-  list.innerHTML = rakeHtml + payments.map(p => {
-    const settled = isPaymentSettled(p);
-    const settledClass = settled ? ' settled' : '';
-    const escapedFrom = p.from.replace(/'/g,"\\'");
-    const escapedTo = p.to.replace(/'/g,"\\'");
-    const toggleHtml = state.isAdmin
-      ? '<button class="settle-toggle' + (settled ? ' checked' : '') + '" onclick="togglePaymentSettled(\'' + escapedFrom + '\',\'' + escapedTo + '\',' + p.amount + ')" title="' + (settled ? 'Mark as unpaid' : 'Mark as paid') + '">' + (settled ? '\u2713' : '') + '</button>'
-      : (settled ? '<span class="settled-label">Paid</span>' : '');
-    return '<div class="payment-card' + settledClass + '">' + toggleHtml +
-      '<span class="payment-from">' + p.from + '</span>' +
-      '<span class="payment-arrow">\u2192</span>' +
-      '<span class="payment-to">' + p.to + '</span>' +
-      '<span class="payment-amount">' + formatMoney(p.amount) + '</span></div>';
-  }).join('') +
-  '<p style="font-size:0.8rem;color:var(--text2);margin-top:12px;">' + payments.length + ' payment' + (payments.length !== 1 ? 's' : '') +
-  ' \u2014 <span style="color:var(--green)">' + settledCount + ' paid</span>, <span style="color:' + (payments.length - settledCount > 0 ? 'var(--red)' : 'var(--green)') + '">' + (payments.length - settledCount) + ' remaining</span></p>';
+    function paymentKey(p) { return p.from + '|' + p.to + '|' + p.amount; }
+    function isPaymentSettled(p) { return !!(state.settledPayments && state.settledPayments[paymentKey(p)]); }
 
-  // Show/hide settle button
-  if (settleActions && state.isAdmin && settledCount > 0) settleActions.classList.remove('hidden');
-  else if (settleActions) settleActions.classList.add('hidden');
-}
+    function togglePaymentSettled(from, to, amount) {
+      if (!state.isAdmin) return;
+      const key = from + '|' + to + '|' + amount;
+      if (!state.settledPayments) state.settledPayments = {};
+      if (state.settledPayments[key]) delete state.settledPayments[key];
+      else state.settledPayments[key] = true;
+      saveState();
+      renderPayments();
+    }
 
-function settleMarkedPayments() {
-  if (!state.isAdmin) return;
-  const balances = calcNetBalances();
-  const { payments } = minimumPayments(balances);
-  const markedPayments = payments.filter(p => isPaymentSettled(p));
+    function renderPayments() {
+      const list = document.getElementById('paymentsList');
+      const noPayments = document.getElementById('noPayments');
+      const settleActions = document.getElementById('settleActions');
 
-  if (!markedPayments.length) { alert('No payments marked as paid.'); return; }
-  if (!confirm('Permanently settle ' + markedPayments.length + ' paid payment(s)? This removes them from the active list.')) return;
+      const balances = calcNetBalances();
+      const { payments } = minimumPayments(balances);
 
-  // Convert marked payments into credits
-  if (!state.credits) state.credits = [];
-  markedPayments.forEach(p => {
-    state.credits.push({
-      from: p.from,
-      to: p.to,
-      amount: p.amount,
-      date: new Date().toISOString(),
-    });
-    delete state.settledPayments[paymentKey(p)];
-  });
+      if (!payments.length) {
+        list.innerHTML = '';
+        noPayments.classList.remove('hidden');
+        if (settleActions) settleActions.classList.add('hidden');
+        return;
+      }
+      noPayments.classList.add('hidden');
 
-  saveState();
-  renderPayments();
-}
+      const settledCount = payments.filter(p => isPaymentSettled(p)).length;
 
-// ========== HELPERS ==========
-function formatMoney(val, showSign) {
-  const dollars = val / 100;
-  const abs = Math.abs(dollars);
-  let str = '$' + abs.toFixed(2);
-  if (showSign) {
-    if (dollars > 0) return '+' + str;
-    if (dollars < 0) return '-' + str;
-  } else {
-    if (dollars < 0) return '-' + str;
-  }
-  return str;
-}
+      list.innerHTML = payments.map(p => {
+        const settled = isPaymentSettled(p);
+        const settledClass = settled ? ' settled' : '';
+        const escapedFrom = p.from.replace(/'/g, "\\'");
+        const escapedTo = p.to.replace(/'/g, "\\'");
+        const toggleHtml = state.isAdmin
+          ? '<button class="settle-toggle' + (settled ? ' checked' : '') + '" onclick="togglePaymentSettled(\'' + escapedFrom + '\',\'' + escapedTo + '\',' + p.amount + ')" title="' + (settled ? 'Mark as unpaid' : 'Mark as paid') + '">' + (settled ? '\u2713' : '') + '</button>'
+          : (settled ? '<span class="settled-label">Paid</span>' : '');
+        return '<div class="payment-card' + settledClass + '">' + toggleHtml +
+          '<span class="payment-from">' + p.from + '</span>' +
+          '<span class="payment-arrow">\u2192</span>' +
+          '<span class="payment-to">' + p.to + '</span>' +
+          '<span class="payment-amount">' + formatMoney(p.amount) + '</span></div>';
+      }).join('') +
+        '<p style="font-size:0.8rem;color:var(--text2);margin-top:12px;">' + payments.length + ' payment' + (payments.length !== 1 ? 's' : '') +
+        ' \u2014 <span style="color:var(--green)">' + settledCount + ' paid</span>, <span style="color:' + (payments.length - settledCount > 0 ? 'var(--red)' : 'var(--green)') + '">' + (payments.length - settledCount) + ' remaining</span></p>';
 
-// ========== DATA MANAGEMENT ==========
-function exportData() {
-  const data = JSON.stringify({
-    players: state.players, games: state.games, credits: state.credits,
-    settledPayments: state.settledPayments, nickMemory: state.nickMemory,
-  }, null, 2);
-  const blob = new Blob([data], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = 'jericho-poker-' + new Date().toISOString().split('T')[0] + '.json';
-  a.click(); URL.revokeObjectURL(a.href);
-}
-function importData(file) {
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const data = JSON.parse(e.target.result);
-      if (!data.games || !data.players) throw new Error('Invalid format');
-      if (!confirm('Import ' + data.games.length + ' games? This replaces current data.')) return;
-      state.players = data.players;
-      state.games = data.games;
-      state.credits = data.credits || [];
-      state.settledPayments = data.settledPayments || {};
-      state.nickMemory = data.nickMemory || {};
+      // Show/hide settle button
+      if (settleActions && state.isAdmin && settledCount > 0) settleActions.classList.remove('hidden');
+      else if (settleActions) settleActions.classList.add('hidden');
+    }
+
+    function settleMarkedPayments() {
+      if (!state.isAdmin) return;
+      const balances = calcNetBalances();
+      const { payments } = minimumPayments(balances);
+      const markedPayments = payments.filter(p => isPaymentSettled(p));
+
+      if (!markedPayments.length) { alert('No payments marked as paid.'); return; }
+      if (!confirm('Permanently settle ' + markedPayments.length + ' paid payment(s)? This removes them from the active list.')) return;
+
+      // Convert marked payments into credits
+      if (!state.credits) state.credits = [];
+      markedPayments.forEach(p => {
+        state.credits.push({
+          from: p.from,
+          to: p.to,
+          amount: p.amount,
+          date: new Date().toISOString(),
+        });
+        delete state.settledPayments[paymentKey(p)];
+      });
+
+      saveState();
+      renderPayments();
+    }
+
+    // ========== HELPERS ==========
+    function formatMoney(val, showSign) {
+      const dollars = val / 100;
+      const abs = Math.abs(dollars);
+      let str = '$' + abs.toFixed(2);
+      if (showSign) {
+        if (dollars > 0) return '+' + str;
+        if (dollars < 0) return '-' + str;
+      } else {
+        if (dollars < 0) return '-' + str;
+      }
+      return str;
+    }
+
+    // ========== DATA MANAGEMENT ==========
+    function exportData() {
+      const data = JSON.stringify({
+        players: state.players, games: state.games, credits: state.credits,
+        settledPayments: state.settledPayments, nickMemory: state.nickMemory,
+      }, null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'jericho-poker-' + new Date().toISOString().split('T')[0] + '.json';
+      a.click(); URL.revokeObjectURL(a.href);
+    }
+    function importData(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (!data.games || !data.players) throw new Error('Invalid format');
+          if (!confirm('Import ' + data.games.length + ' games? This replaces current data.')) return;
+          state.players = data.players;
+          state.games = data.games;
+          state.credits = data.credits || [];
+          state.settledPayments = data.settledPayments || {};
+          state.nickMemory = data.nickMemory || {};
+          saveState();
+          refreshCurrentTab();
+          alert('Data imported!');
+        } catch (err) { alert('Invalid JSON: ' + err.message); }
+      };
+      reader.readAsText(file);
+      document.getElementById('importInput').value = '';
+    }
+    function clearAllData() {
+      if (!confirm('Delete ALL poker data? This cannot be undone.')) return;
+      if (!confirm('Are you really sure?')) return;
+      state.players = [...DEFAULT_PLAYERS];
+      state.games = [];
+      state.credits = [];
+      state.settledPayments = {};
+      state.nickMemory = {};
       saveState();
       refreshCurrentTab();
-      alert('Data imported!');
-    } catch (err) { alert('Invalid JSON: ' + err.message); }
-  };
-  reader.readAsText(file);
-  document.getElementById('importInput').value = '';
-}
-function clearAllData() {
-  if (!confirm('Delete ALL poker data? This cannot be undone.')) return;
-  if (!confirm('Are you really sure?')) return;
-  state.players = [...DEFAULT_PLAYERS];
-  state.games = [];
-  state.credits = [];
-  state.settledPayments = {};
-  state.nickMemory = {};
-  saveState();
-  refreshCurrentTab();
-  renderPlayerList();
-  alert('All data cleared.');
-}
+      renderPlayerList();
+      alert('All data cleared.');
+    }
 
-// ========== DRAG & DROP ==========
-const uploadZone = document.getElementById('uploadZone');
-if (uploadZone) {
-  uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
-  uploadZone.addEventListener('dragleave', () => { uploadZone.classList.remove('dragover'); });
-  uploadZone.addEventListener('drop', (e) => {
-    e.preventDefault(); uploadZone.classList.remove('dragover');
-    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-  });
-}
+    // ========== DRAG & DROP ==========
+    const uploadZone = document.getElementById('uploadZone');
+    if (uploadZone) {
+      uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+      uploadZone.addEventListener('dragleave', () => { uploadZone.classList.remove('dragover'); });
+      uploadZone.addEventListener('drop', (e) => {
+        e.preventDefault(); uploadZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+      });
+    }
 
-// ========== INIT ==========
-loadFromLocalStorage(); // immediate local load
-loadFromFirebase();     // then sync with Firebase
-updateAuthUI();
-renderDashboard();
-</script>
+    // ========== INIT ==========
+    loadFromLocalStorage(); // immediate local load
+    loadFromFirebase();     // then sync with Firebase
+    updateAuthUI();
+    renderDashboard();
+  </script>
 </body>
+
 </html>
