@@ -634,7 +634,7 @@
 <body>
 
   <header>
-    <h1><span>&#9824;</span> Jericho Poker Tracker</h1>
+    <h1><span>&#9824;</span> Poker Tracker (jericho) </h1>
     <div class="header-right">
       <span class="sync-indicator online" id="syncBadge">Synced</span>
       <span class="mode-badge viewer" id="modeBadge">Viewer</span>
@@ -686,13 +686,16 @@
     <div id="tab-payments" class="hidden">
       <div class="card">
         <h2>Settlement Payments</h2>
-        <div class="settle-info">Minimum payments to settle all debts. Amounts are rounded to the nearest dollar per game.</div>
+        <div class="settle-info">Minimum payments to settle all debts. Amounts are rounded to the nearest dollar per
+          game.</div>
         <div id="paymentsList"></div>
         <p id="noPayments" class="hidden" style="color:var(--text2);text-align:center;padding:40px;">All settled up!</p>
         <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;" id="settleActions" class="hidden">
-          <button class="btn btn-success" id="settleMarkedBtn" onclick="settleMarkedPayments()">Settle Marked Paid</button>
+          <button class="btn btn-success" id="settleMarkedBtn" onclick="settleMarkedPayments()">Settle Marked
+            Paid</button>
           <button class="btn btn-primary" id="settleAllBtn" onclick="settleAll()">Settle All</button>
-          <span style="font-size:0.8rem;color:var(--text2);align-self:center;">Settles transactions and resets balances.</span>
+          <span style="font-size:0.8rem;color:var(--text2);align-self:center;">Settles transactions and resets
+            balances.</span>
         </div>
       </div>
     </div>
@@ -734,13 +737,16 @@
         <div style="padding:12px;background:var(--surface2);border-radius:var(--radius);margin-bottom:16px;">
           <span style="font-size:0.8rem;color:var(--text2);">Total rake collected (from rounding):</span>
           <span id="totalRakeDisplay" style="font-weight:700;color:var(--gold);margin-left:8px;">$0.00</span>
-          <p style="font-size:0.75rem;color:var(--text2);margin-top:4px;">All players rounded down to nearest dollar per game. Mismatch credited to host.</p>
+          <p style="font-size:0.75rem;color:var(--text2);margin-top:4px;">All players rounded down to nearest dollar per
+            game. Mismatch credited to host.</p>
         </div>
         <div style="padding:12px;background:var(--surface2);border-radius:var(--radius);margin-bottom:16px;">
           <span style="font-size:0.8rem;color:var(--text2);">Change Admin PIN:</span>
           <div style="display:flex;gap:8px;margin-top:8px;">
-            <input type="password" id="newPinInput" placeholder="New PIN..." style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:0.85rem;">
-            <input type="password" id="confirmPinInput" placeholder="Confirm..." style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:0.85rem;">
+            <input type="password" id="newPinInput" placeholder="New PIN..."
+              style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:0.85rem;">
+            <input type="password" id="confirmPinInput" placeholder="Confirm..."
+              style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:0.85rem;">
             <button class="btn btn-primary btn-small" onclick="changePin()">Update</button>
           </div>
         </div>
