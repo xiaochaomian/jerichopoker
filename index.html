@@ -686,14 +686,13 @@
     <div id="tab-payments" class="hidden">
       <div class="card">
         <h2>Settlement Payments</h2>
-        <div class="settle-info">Minimum payments to settle all debts. Rake ($1/game from winners over $25) is already included in each player's net.
-          (database host fee).</div>
+        <div class="settle-info">Minimum payments to settle all debts. Amounts are rounded to the nearest dollar per game.</div>
         <div id="paymentsList"></div>
         <p id="noPayments" class="hidden" style="color:var(--text2);text-align:center;padding:40px;">All settled up!</p>
-        <div style="margin-top:16px;display:flex;gap:8px;" id="settleActions" class="hidden">
-          <button class="btn btn-success" id="settleBtn" onclick="settleMarkedPayments()">Mark Paid as Settled</button>
-          <span style="font-size:0.8rem;color:var(--text2);align-self:center;">Removes all individually-paid
-            transactions permanently.</span>
+        <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;" id="settleActions" class="hidden">
+          <button class="btn btn-success" id="settleMarkedBtn" onclick="settleMarkedPayments()">Settle Marked Paid</button>
+          <button class="btn btn-primary" id="settleAllBtn" onclick="settleAll()">Settle All</button>
+          <span style="font-size:0.8rem;color:var(--text2);align-self:center;">Settles transactions and resets balances.</span>
         </div>
       </div>
     </div>
@@ -731,8 +730,13 @@
       </div>
 
       <div class="card" id="dataManagement" style="display:none;">
-        <h2>Data Management</h2>
-        <p style="font-size:0.83rem;color:var(--text2);margin-bottom:16px;">Export/import data as JSON backup.</p>
+        <h2>Admin Settings</h2>
+        <div style="padding:12px;background:var(--surface2);border-radius:var(--radius);margin-bottom:16px;">
+          <span style="font-size:0.8rem;color:var(--text2);">Total rake collected (from rounding):</span>
+          <span id="totalRakeDisplay" style="font-weight:700;color:var(--gold);margin-left:8px;">$0.00</span>
+          <p style="font-size:0.75rem;color:var(--text2);margin-top:4px;">Winners rounded down, losers rounded up to nearest dollar per game. Difference credited to host.</p>
+        </div>
+        <h3 style="font-size:0.95rem;margin-bottom:12px;color:var(--text2);">Data Management</h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-secondary" onclick="exportData()">Export JSON</button>
           <button class="btn btn-secondary" onclick="document.getElementById('importInput').click()">Import
@@ -777,22 +781,60 @@
       "Norman Pang", "Stephen Lyu", "Tony Pan", "Romir Sachdev", "Dev Lakhani"
     ];
     const RAKE_HOST = "Michael Jiao";
-    const RAKE_THRESHOLD = 2500; // cents — $25 per game
-    const RAKE_PER_WINNER = 100; // cents — $1 per game
 
-    // Apply rake per-game: winners over threshold lose $1, host gains it
+    // Smart rounding per game:
+    // - Winners: round DOWN to nearest dollar (e.g. +$46.15 -> +$46.00)
+    // - Losers: round UP toward zero (e.g. -$25.50 -> -$25.00, they pay less)
+    // - The difference (cents shaved off) goes to the host
     function getGameResultsWithRake(results) {
-      const adj = { ...results };
-      let rakeTotal = 0;
-      Object.entries(adj).forEach(([player, net]) => {
-        if (player !== RAKE_HOST && net > RAKE_THRESHOLD) {
-          adj[player] -= RAKE_PER_WINNER;
-          rakeTotal += RAKE_PER_WINNER;
+      const adj = {};
+      let totalBefore = 0;
+      let totalAfter = 0;
+
+      Object.entries(results).forEach(([player, net]) => {
+        if (player === RAKE_HOST) {
+          adj[player] = net; // host gets adjusted at the end
+          totalBefore += net;
+          return;
         }
+        let rounded;
+        if (net > 0) {
+          // Winner: floor to nearest 100 cents (dollar)
+          rounded = Math.floor(net / 100) * 100;
+        } else if (net < 0) {
+          // Loser: ceil toward zero (less negative) to nearest 100 cents
+          rounded = Math.ceil(net / 100) * 100;
+        } else {
+          rounded = 0;
+        }
+        adj[player] = rounded;
+        totalBefore += net;
+        totalAfter += rounded;
       });
+
+      // Host absorbs the rounding difference
       if (!adj[RAKE_HOST]) adj[RAKE_HOST] = 0;
-      adj[RAKE_HOST] += rakeTotal;
+      // totalBefore should be ~0 (zero-sum game), so host's adjusted = host_raw + (totalBefore - host_raw - totalAfter)
+      // Simplifies to: host gets whatever is left to keep it zero-sum with rounded values
+      const othersTotal = totalAfter; // sum of all non-host rounded values
+      const hostRaw = results[RAKE_HOST] || 0;
+      // The full pot is zero-sum, so host's share = -othersTotal
+      // But we want host_original + rake_bonus, where rake_bonus = (-othersTotal) - hostRaw
+      adj[RAKE_HOST] = -(totalAfter); // keeps the game zero-sum; host gets the rounding leftovers
+
       return adj;
+    }
+
+    // Calculate total rake collected across all games (for admin display)
+    function calcTotalRake() {
+      let total = 0;
+      state.games.forEach(g => {
+        const hostRaw = g.results[RAKE_HOST] || 0;
+        const adj = getGameResultsWithRake(g.results);
+        const hostAdj = adj[RAKE_HOST] || 0;
+        total += (hostAdj - hostRaw);
+      });
+      return total;
     }
 
     // ========== STATE ==========
@@ -884,7 +926,15 @@
       if (currentTab === 'dashboard') renderDashboard();
       else if (currentTab === 'games') renderGames();
       else if (currentTab === 'payments') renderPayments();
-      if (state.isAdmin) renderPlayerList();
+      if (state.isAdmin) {
+        renderPlayerList();
+        updateRakeDisplay();
+      }
+    }
+
+    function updateRakeDisplay() {
+      const el = document.getElementById('totalRakeDisplay');
+      if (el) el.textContent = formatMoney(calcTotalRake());
     }
 
     // ========== AUTH ==========
@@ -1209,7 +1259,7 @@
         const sorted = Object.entries(adjResults).sort((a, b) => b[1] - a[1]);
         const delBtn = state.isAdmin ? ' <button class="btn btn-danger btn-small" style="margin-left:8px;" onclick="deleteGame(\'' + g.id + '\')">Delete</button>' : '';
         return '<div class="game-card"><div class="game-card-header"><h3>' + g.name + '</h3><span class="game-date">' + g.dateStr + delBtn + '</span></div>' +
-          '<table><thead><tr><th>Player</th><th>Nickname</th><th>Net (incl. rake)</th></tr></thead><tbody>' +
+          '<table><thead><tr><th>Player</th><th>Nickname</th><th>Net</th></tr></thead><tbody>' +
           sorted.map(([player, net]) => {
             const nick = Object.entries(g.nickMap || {}).find(([_, v]) => v === player);
             const cls = net > 0 ? 'positive' : net < 0 ? 'negative' : 'zero';
@@ -1326,9 +1376,13 @@
         '<p style="font-size:0.8rem;color:var(--text2);margin-top:12px;">' + payments.length + ' payment' + (payments.length !== 1 ? 's' : '') +
         ' \u2014 <span style="color:var(--green)">' + settledCount + ' paid</span>, <span style="color:' + (payments.length - settledCount > 0 ? 'var(--red)' : 'var(--green)') + '">' + (payments.length - settledCount) + ' remaining</span></p>';
 
-      // Show/hide settle button
-      if (settleActions && state.isAdmin && settledCount > 0) settleActions.classList.remove('hidden');
-      else if (settleActions) settleActions.classList.add('hidden');
+      // Show/hide settle buttons
+      if (settleActions && state.isAdmin) {
+        settleActions.classList.remove('hidden');
+        document.getElementById('settleMarkedBtn').style.display = settledCount > 0 ? '' : 'none';
+      } else if (settleActions) {
+        settleActions.classList.add('hidden');
+      }
     }
 
     function settleMarkedPayments() {
@@ -1352,6 +1406,28 @@
         delete state.settledPayments[paymentKey(p)];
       });
 
+      saveState();
+      renderPayments();
+    }
+
+    function settleAll() {
+      if (!state.isAdmin) return;
+      const balances = calcNetBalances();
+      const { payments } = minimumPayments(balances);
+      if (!payments.length) { alert('Nothing to settle.'); return; }
+      if (!confirm('Settle ALL ' + payments.length + ' payment(s)? This resets all balances to zero.')) return;
+
+      if (!state.credits) state.credits = [];
+      payments.forEach(p => {
+        state.credits.push({
+          from: p.from,
+          to: p.to,
+          amount: p.amount,
+          date: new Date().toISOString(),
+        });
+      });
+      // Clear any individual toggles
+      state.settledPayments = {};
       saveState();
       renderPayments();
     }
