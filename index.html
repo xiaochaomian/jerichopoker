@@ -734,7 +734,15 @@
         <div style="padding:12px;background:var(--surface2);border-radius:var(--radius);margin-bottom:16px;">
           <span style="font-size:0.8rem;color:var(--text2);">Total rake collected (from rounding):</span>
           <span id="totalRakeDisplay" style="font-weight:700;color:var(--gold);margin-left:8px;">$0.00</span>
-          <p style="font-size:0.75rem;color:var(--text2);margin-top:4px;">Winners rounded down, losers rounded up to nearest dollar per game. Difference credited to host.</p>
+          <p style="font-size:0.75rem;color:var(--text2);margin-top:4px;">All players rounded down to nearest dollar per game. Mismatch credited to host.</p>
+        </div>
+        <div style="padding:12px;background:var(--surface2);border-radius:var(--radius);margin-bottom:16px;">
+          <span style="font-size:0.8rem;color:var(--text2);">Change Admin PIN:</span>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <input type="password" id="newPinInput" placeholder="New PIN..." style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:0.85rem;">
+            <input type="password" id="confirmPinInput" placeholder="Confirm..." style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:0.85rem;">
+            <button class="btn btn-primary btn-small" onclick="changePin()">Update</button>
+          </div>
         </div>
         <h3 style="font-size:0.95rem;margin-bottom:12px;color:var(--text2);">Data Management</h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -775,7 +783,12 @@
     const db = firebase.database();
 
     // ========== CONSTANTS ==========
-    const ADMIN_PIN = "112233";
+    // PIN is stored as a SHA-256 hash in Firebase, never in source code
+    async function hashPin(pin) {
+      const encoded = new TextEncoder().encode(pin);
+      const buffer = await crypto.subtle.digest('SHA-256', encoded);
+      return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
     const DEFAULT_PLAYERS = [
       "Michael Jiao", "Vihaan", "Caleb Kao", "Andrew Pang",
       "Norman Pang", "Stephen Lyu", "Tony Pan", "Romir Sachdev", "Dev Lakhani"
@@ -931,8 +944,26 @@
       document.getElementById('pinInput').focus();
     }
     function hideLogin() { document.getElementById('loginModal').classList.add('hidden'); }
-    function doLogin() {
-      if (document.getElementById('pinInput').value === ADMIN_PIN) {
+    async function doLogin() {
+      const pin = document.getElementById('pinInput').value;
+      if (!pin) return;
+      const enteredHash = await hashPin(pin);
+
+      // Read stored hash from Firebase
+      const snap = await db.ref('pokerTracker/adminPinHash').once('value');
+      const storedHash = snap.val();
+
+      if (!storedHash) {
+        // No PIN set yet — first-time setup: store this PIN's hash
+        await db.ref('pokerTracker/adminPinHash').set(enteredHash);
+        state.isAdmin = true;
+        hideLogin();
+        updateAuthUI();
+        alert('Admin PIN has been set! Remember this PIN.');
+        return;
+      }
+
+      if (enteredHash === storedHash) {
         state.isAdmin = true;
         hideLogin();
         updateAuthUI();
@@ -941,6 +972,19 @@
       }
     }
     function logout() { state.isAdmin = false; updateAuthUI(); }
+
+    async function changePin() {
+      if (!state.isAdmin) return;
+      const newPin = document.getElementById('newPinInput').value;
+      const confirmPin = document.getElementById('confirmPinInput').value;
+      if (!newPin || newPin.length < 4) { alert('PIN must be at least 4 characters.'); return; }
+      if (newPin !== confirmPin) { alert('PINs do not match.'); return; }
+      const newHash = await hashPin(newPin);
+      await db.ref('pokerTracker/adminPinHash').set(newHash);
+      document.getElementById('newPinInput').value = '';
+      document.getElementById('confirmPinInput').value = '';
+      alert('Admin PIN updated!');
+    }
 
     function updateAuthUI() {
       const badge = document.getElementById('modeBadge');
