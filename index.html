@@ -737,8 +737,7 @@
         <div style="padding:12px;background:var(--surface2);border-radius:var(--radius);margin-bottom:16px;">
           <span style="font-size:0.8rem;color:var(--text2);">Total rake collected (from rounding):</span>
           <span id="totalRakeDisplay" style="font-weight:700;color:var(--gold);margin-left:8px;">$0.00</span>
-          <p style="font-size:0.75rem;color:var(--text2);margin-top:4px;">All players rounded down to nearest dollar per
-            game. Mismatch credited to host.</p>
+          <p style="font-size:0.75rem;color:var(--text2);margin-top:4px;">All players floored to nearest dollar + tiered rake on winners: $1 over $25, $2 over $50, $3 over $75, $4 over $100.</p>
         </div>
         <div style="padding:12px;background:var(--surface2);border-radius:var(--radius);margin-bottom:16px;">
           <span style="font-size:0.8rem;color:var(--text2);">Change Admin PIN:</span>
@@ -806,24 +805,33 @@
     // - Losers: round UP toward zero (e.g. -$25.50 -> -$25.00, they pay less)
     // - The difference (cents shaved off) goes to the host
     function getGameResultsWithRake(results) {
-      // Round ALL non-host players down (floor) to nearest dollar per game.
-      //   Winner +$46.15 → +$46.00  (loses 15c)
-      //   Loser  -$5.50  → -$6.00   (owes extra 50c)
-      // Host rake = sum of rounded losses - sum of rounded wins (always whole dollars)
+      // 1. Floor ALL non-host players to nearest dollar per game
+      // 2. Additional rake for big winners: up to $4 extra if net > $100
+      //    Tiered: >$25 = $1, >$50 = $2, >$75 = $3, >$100 = $4
+      // Host absorbs the difference to keep game zero-sum
       const adj = {};
       let othersRoundedTotal = 0;
 
       Object.entries(results).forEach(([player, net]) => {
-        if (player === RAKE_HOST) return; // handle host last
-        // Floor everything: positives floor down, negatives floor down (more negative)
-        const rounded = Math.floor(net / 100) * 100;
+        if (player === RAKE_HOST) return;
+        // Floor everything first
+        let rounded = Math.floor(net / 100) * 100;
+
+        // Additional rake tiers on winners (applied after rounding)
+        if (rounded > 0) {
+          let extraRake = 0;
+          if (rounded >= 10000) extraRake = 400;       // >=$100 → $4
+          else if (rounded >= 7500) extraRake = 300;    // >=$75  → $3
+          else if (rounded >= 5000) extraRake = 200;    // >=$50  → $2
+          else if (rounded >= 2500) extraRake = 100;    // >=$25  → $1
+          rounded -= extraRake;
+        }
+
         adj[player] = rounded;
         othersRoundedTotal += rounded;
       });
 
-      // Host gets whatever makes the game zero-sum:
-      // Since raw game is zero-sum, and we floored everyone else,
-      // host = -(sum of everyone else's rounded values)
+      // Host gets whatever keeps the game zero-sum
       adj[RAKE_HOST] = -othersRoundedTotal;
 
       return adj;
