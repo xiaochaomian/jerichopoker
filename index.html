@@ -553,6 +553,117 @@
       margin-bottom: 12px;
     }
 
+    /* Manual Adjustments */
+    .adjustments-section {
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+
+    .adjustments-section h3 {
+      font-size: 1rem;
+      margin-bottom: 4px;
+    }
+
+    .adjustments-section .section-desc {
+      font-size: 0.8rem;
+      color: var(--text2);
+      margin-bottom: 12px;
+    }
+
+    .adj-form {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .adj-form select,
+    .adj-form input {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      font-size: 0.85rem;
+    }
+
+    .adj-form select:focus,
+    .adj-form input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .adj-form input[type="number"] {
+      width: 110px;
+    }
+
+    .adj-form input[type="text"] {
+      flex: 1;
+      min-width: 120px;
+    }
+
+    .adj-log {
+      max-height: 240px;
+      overflow-y: auto;
+    }
+
+    .adj-entry {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      background: var(--surface2);
+      border-radius: var(--radius);
+      margin-bottom: 6px;
+      font-size: 0.85rem;
+    }
+
+    .adj-entry .adj-player {
+      font-weight: 600;
+      min-width: 110px;
+    }
+
+    .adj-entry .adj-amount {
+      font-weight: 700;
+      min-width: 80px;
+    }
+
+    .adj-entry .adj-amount.positive {
+      color: var(--green);
+    }
+
+    .adj-entry .adj-amount.negative {
+      color: var(--red);
+    }
+
+    .adj-entry .adj-reason {
+      color: var(--text2);
+      flex: 1;
+    }
+
+    .adj-entry .adj-date {
+      color: var(--text2);
+      font-size: 0.75rem;
+      white-space: nowrap;
+    }
+
+    .adj-entry .adj-delete {
+      background: transparent;
+      border: none;
+      color: var(--red);
+      cursor: pointer;
+      font-size: 0.9rem;
+      opacity: 0.6;
+      transition: opacity 0.2s;
+      padding: 2px 6px;
+    }
+
+    .adj-entry .adj-delete:hover {
+      opacity: 1;
+    }
+
     .rake-info {
       font-size: 0.8rem;
       color: var(--text2);
@@ -696,6 +807,23 @@
           <button class="btn btn-primary" id="settleAllBtn" onclick="settleAll()">Settle All</button>
           <span style="font-size:0.8rem;color:var(--text2);align-self:center;">Settles transactions and resets
             balances.</span>
+        </div>
+
+        <!-- Manual Adjustments (admin only) -->
+        <div id="adjustmentsSection" class="adjustments-section hidden">
+          <h3>Manual Adjustments</h3>
+          <p class="section-desc">Increase or decrease a player's balance to account for partial payments, corrections, or other edge cases.</p>
+          <div class="adj-form">
+            <select id="adjPlayer"></select>
+            <select id="adjDirection">
+              <option value="decrease">Reduce debt</option>
+              <option value="increase">Add debt</option>
+            </select>
+            <input type="number" id="adjAmount" placeholder="$ amount" min="0.01" step="0.01">
+            <input type="text" id="adjReason" placeholder="Reason (optional)">
+            <button class="btn btn-primary btn-small" onclick="addManualAdjustment()">Apply</button>
+          </div>
+          <div id="adjLog" class="adj-log"></div>
         </div>
       </div>
     </div>
@@ -857,6 +985,7 @@
       credits: [],        // { from, to, amount, date } — settled payments that offset balances
       settledPayments: {}, // "from|to|amount" -> true (individual toggles before batch settle)
       nickMemory: {},
+      manualAdjustments: [], // { player, amount (cents), reason, date } — manual balance tweaks
     };
 
     let currentTab = 'dashboard';
@@ -874,6 +1003,7 @@
           state.credits = data.credits || [];
           state.settledPayments = data.settledPayments || {};
           state.nickMemory = data.nickMemory || {};
+          state.manualAdjustments = data.manualAdjustments || [];
         }
         firebaseReady = true;
         updateSyncBadge(true);
@@ -899,6 +1029,7 @@
         credits: state.credits,
         settledPayments: state.settledPayments,
         nickMemory: state.nickMemory,
+        manualAdjustments: state.manualAdjustments,
       };
       // Save to Firebase
       dbRef('state').set(payload).catch((err) => {
@@ -919,6 +1050,7 @@
           state.credits = parsed.credits || [];
           state.settledPayments = parsed.settledPayments || {};
           state.nickMemory = parsed.nickMemory || {};
+          state.manualAdjustments = parsed.manualAdjustments || [];
         }
       } catch (e) { }
     }
@@ -1337,6 +1469,11 @@
         balances[c.from] += c.amount; // from owes less (was negative, adding makes it closer to 0)
         balances[c.to] -= c.amount;   // to is owed less (was positive, subtracting makes it closer to 0)
       });
+      // Apply manual adjustments (positive = reduce debt / add credit, negative = increase debt)
+      (state.manualAdjustments || []).forEach(adj => {
+        if (!balances[adj.player]) balances[adj.player] = 0;
+        balances[adj.player] += adj.amount;
+      });
       return balances;
     }
 
@@ -1396,6 +1533,7 @@
         list.innerHTML = '';
         noPayments.classList.remove('hidden');
         if (settleActions) settleActions.classList.add('hidden');
+        renderAdjustmentsSection();
         return;
       }
       noPayments.classList.add('hidden');
@@ -1426,6 +1564,8 @@
       } else if (settleActions) {
         settleActions.classList.add('hidden');
       }
+
+      renderAdjustmentsSection();
     }
 
     function settleMarkedPayments() {
@@ -1469,10 +1609,89 @@
           date: new Date().toISOString(),
         });
       });
-      // Clear any individual toggles
+      // Clear any individual toggles and manual adjustments (balances are now zero)
       state.settledPayments = {};
+      state.manualAdjustments = [];
       saveState();
       renderPayments();
+    }
+
+    // ========== MANUAL ADJUSTMENTS ==========
+    function addManualAdjustment() {
+      if (!state.isAdmin) return;
+      const player = document.getElementById('adjPlayer').value;
+      const direction = document.getElementById('adjDirection').value;
+      const dollarAmount = parseFloat(document.getElementById('adjAmount').value);
+      const reason = document.getElementById('adjReason').value.trim();
+
+      if (!player) { alert('Please select a player.'); return; }
+      if (!dollarAmount || dollarAmount <= 0) { alert('Please enter a valid positive dollar amount.'); return; }
+
+      // Convert dollars to cents; direction determines sign
+      // "decrease debt" = positive (moves balance toward 0 / into positive)
+      // "increase debt" = negative (moves balance further negative)
+      const cents = Math.round(dollarAmount * 100);
+      const amount = direction === 'decrease' ? cents : -cents;
+
+      if (!state.manualAdjustments) state.manualAdjustments = [];
+      state.manualAdjustments.push({
+        player,
+        amount,
+        reason: reason || (direction === 'decrease' ? 'Debt reduced' : 'Debt increased'),
+        date: new Date().toISOString(),
+      });
+
+      saveState();
+      document.getElementById('adjAmount').value = '';
+      document.getElementById('adjReason').value = '';
+      renderPayments();
+    }
+
+    function deleteManualAdjustment(index) {
+      if (!state.isAdmin) return;
+      if (!confirm('Remove this adjustment?')) return;
+      state.manualAdjustments.splice(index, 1);
+      saveState();
+      renderPayments();
+    }
+
+    function renderAdjustmentsSection() {
+      const section = document.getElementById('adjustmentsSection');
+      if (!section) return;
+
+      if (!state.isAdmin) {
+        section.classList.add('hidden');
+        return;
+      }
+      section.classList.remove('hidden');
+
+      // Populate player dropdown
+      const select = document.getElementById('adjPlayer');
+      const currentVal = select.value;
+      select.innerHTML = '<option value="">Select player...</option>' +
+        state.players.map(p => '<option value="' + p + '"' + (p === currentVal ? ' selected' : '') + '>' + p + '</option>').join('');
+
+      // Render adjustment log
+      const log = document.getElementById('adjLog');
+      const adjs = state.manualAdjustments || [];
+      if (!adjs.length) {
+        log.innerHTML = '<p style="color:var(--text2);font-size:0.82rem;">No manual adjustments yet.</p>';
+        return;
+      }
+
+      log.innerHTML = adjs.map((adj, i) => {
+        const isPositive = adj.amount > 0;
+        const dollars = Math.abs(adj.amount) / 100;
+        const dateStr = new Date(adj.date).toLocaleDateString();
+        return '<div class="adj-entry">' +
+          '<span class="adj-player">' + adj.player + '</span>' +
+          '<span class="adj-amount ' + (isPositive ? 'positive' : 'negative') + '">' +
+            (isPositive ? '+' : '-') + '$' + dollars.toFixed(2) + '</span>' +
+          '<span class="adj-reason">' + (adj.reason || '') + '</span>' +
+          '<span class="adj-date">' + dateStr + '</span>' +
+          '<button class="adj-delete" onclick="deleteManualAdjustment(' + i + ')" title="Remove adjustment">&times;</button>' +
+          '</div>';
+      }).reverse().join('');
     }
 
     // ========== HELPERS ==========
@@ -1494,6 +1713,7 @@
       const data = JSON.stringify({
         players: state.players, games: state.games, credits: state.credits,
         settledPayments: state.settledPayments, nickMemory: state.nickMemory,
+        manualAdjustments: state.manualAdjustments,
       }, null, 2);
       const blob = new Blob([data], { type: 'application/json' });
       const a = document.createElement('a');
@@ -1513,6 +1733,7 @@
           state.credits = data.credits || [];
           state.settledPayments = data.settledPayments || {};
           state.nickMemory = data.nickMemory || {};
+          state.manualAdjustments = data.manualAdjustments || [];
           saveState();
           refreshCurrentTab();
           alert('Data imported!');
@@ -1529,6 +1750,7 @@
       state.credits = [];
       state.settledPayments = {};
       state.nickMemory = {};
+      state.manualAdjustments = [];
       saveState();
       refreshCurrentTab();
       renderPlayerList();
