@@ -862,10 +862,9 @@
 
       <div class="card" id="dataManagement" style="display:none;">
         <h2>Admin Settings</h2>
-        <div style="padding:12px;background:var(--surface2);border-radius:var(--radius);margin-bottom:16px;">
-          <span style="font-size:0.8rem;color:var(--text2);">Total rake collected (from rounding):</span>
-          <span id="totalRakeDisplay" style="font-weight:700;color:var(--gold);margin-left:8px;">$0.00</span>
-          <p style="font-size:0.75rem;color:var(--text2);margin-top:4px;">All players floored to nearest dollar + tiered rake on winners: $1 over $25, $2 over $50, $3 over $75, $4 over $100.</p>
+        <!-- Rake display hidden -->
+        <div id="rakeInfoBlock" style="display:none;">
+          <span id="totalRakeDisplay">$0.00</span>
         </div>
         <div style="padding:12px;background:var(--surface2);border-radius:var(--radius);margin-bottom:16px;">
           <span style="font-size:0.8rem;color:var(--text2);">Change Admin PIN:</span>
@@ -934,8 +933,8 @@
     // - The difference (cents shaved off) goes to the host
     function getGameResultsWithRake(results) {
       // 1. Floor ALL non-host players to nearest dollar per game
-      // 2. Additional rake for big winners: up to $4 extra if net > $100
-      //    Tiered: >$25 = $1, >$50 = $2, >$75 = $3, >$100 = $4
+      // 2. Small additional rake for big winners: up to $3 extra
+      //    Tiered: >$50 = $1, >$100 = $2, >$200 = $3
       // Host absorbs the difference to keep game zero-sum
       const adj = {};
       let othersRoundedTotal = 0;
@@ -948,10 +947,9 @@
         // Additional rake tiers on winners (applied after rounding)
         if (rounded > 0) {
           let extraRake = 0;
-          if (rounded >= 10000) extraRake = 400;       // >=$100 → $4
-          else if (rounded >= 7500) extraRake = 300;    // >=$75  → $3
-          else if (rounded >= 5000) extraRake = 200;    // >=$50  → $2
-          else if (rounded >= 2500) extraRake = 100;    // >=$25  → $1
+          if (rounded >= 20000) extraRake = 300;       // >=$200 → $3
+          else if (rounded >= 10000) extraRake = 200;   // >=$100 → $2
+          else if (rounded >= 5000) extraRake = 100;    // >=$50  → $1
           rounded -= extraRake;
         }
 
