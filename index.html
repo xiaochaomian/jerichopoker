@@ -1770,17 +1770,27 @@
     }
 
     function minimumPayments(balancesRaw) {
-      // Rake is already applied per-game in calcNetBalances
-      const balances = {};
+      // 1. Round all balances to the nearest dollar (values are in cents)
+      const rounded = {};
       Object.entries(balancesRaw).forEach(([p, v]) => {
-        const r = Math.round(v);
-        if (Math.abs(r) > 1) balances[p] = r; // ignore sub-penny
+        rounded[p] = Math.round(v / 100) * 100;
       });
 
-      // Collect non-zero balance entries: [{player, amount}]
+      // 2. Fix any rounding residual so the total is exactly 0 (required for DP)
+      const residual = Object.values(rounded).reduce((s, v) => s + v, 0);
+      if (residual !== 0) {
+        // Assign residual to the player with the largest absolute balance
+        let maxPlayer = null, maxAbs = 0;
+        Object.entries(rounded).forEach(([p, v]) => {
+          if (Math.abs(v) > maxAbs) { maxAbs = Math.abs(v); maxPlayer = p; }
+        });
+        if (maxPlayer) rounded[maxPlayer] -= residual;
+      }
+
+      // 3. Collect non-zero entries for the DP
       const entries = [];
-      Object.entries(balances).forEach(([player, amount]) => {
-        if (amount !== 0) entries.push({ player, amount });
+      Object.entries(rounded).forEach(([p, v]) => {
+        if (v !== 0) entries.push({ player: p, amount: v });
       });
       const n = entries.length;
       if (n === 0) return { payments: [] };
@@ -1860,13 +1870,13 @@
         let di = 0, ci = 0;
         while (di < debtors.length && ci < creditors.length) {
           const pay = Math.min(debtors[di].amount, creditors[ci].amount);
-          if (pay > 1) {
-            payments.push({ from: debtors[di].player, to: creditors[ci].player, amount: Math.round(pay) });
+          if (pay >= 100) {
+            payments.push({ from: debtors[di].player, to: creditors[ci].player, amount: pay });
           }
           debtors[di].amount -= pay;
           creditors[ci].amount -= pay;
-          if (debtors[di].amount < 1) di++;
-          if (creditors[ci].amount < 1) ci++;
+          if (debtors[di].amount < 100) di++;
+          if (creditors[ci].amount < 100) ci++;
         }
       }
       return { payments };
