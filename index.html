@@ -876,6 +876,16 @@
             <button class="btn btn-primary btn-small" onclick="changePin()">Update</button>
           </div>
         </div>
+        <div id="ownerPinSection" style="display:none;padding:12px;background:var(--surface2);border-radius:var(--radius);margin-bottom:16px;">
+          <span style="font-size:0.8rem;color:var(--text2);">Owner PIN:</span>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <input type="password" id="newOwnerPinInput" placeholder="New Owner PIN..."
+              style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:0.85rem;">
+            <input type="password" id="confirmOwnerPinInput" placeholder="Confirm..."
+              style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:0.85rem;">
+            <button class="btn btn-primary btn-small" onclick="changeOwnerPin()">Update</button>
+          </div>
+        </div>
         <h3 style="font-size:0.95rem;margin-bottom:12px;color:var(--text2);">Data Management</h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-secondary" onclick="exportData()">Export JSON</button>
@@ -884,6 +894,28 @@
           <input type="file" id="importInput" accept=".json" style="display:none" onchange="importData(this.files[0])">
           <button class="btn btn-danger" onclick="clearAllData()" style="margin-left:auto;">Reset All Data</button>
         </div>
+      </div>
+
+      <!-- Owner-only Rake Dashboard -->
+      <div class="card" id="ownerDashboard" style="display:none;">
+        <h2>Rake Dashboard</h2>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
+          <div style="flex:1;min-width:140px;padding:16px;background:var(--surface2);border-radius:var(--radius);text-align:center;">
+            <div style="font-size:0.8rem;color:var(--text2);margin-bottom:4px;">Total Rake</div>
+            <div id="ownerTotalRake" style="font-size:1.5rem;font-weight:700;color:var(--accent);">$0.00</div>
+          </div>
+          <div style="flex:1;min-width:140px;padding:16px;background:var(--surface2);border-radius:var(--radius);text-align:center;">
+            <div style="font-size:0.8rem;color:var(--text2);margin-bottom:4px;">Avg per Game</div>
+            <div id="ownerAvgRake" style="font-size:1.5rem;font-weight:700;color:var(--text);">$0.00</div>
+          </div>
+          <div style="flex:1;min-width:140px;padding:16px;background:var(--surface2);border-radius:var(--radius);text-align:center;">
+            <div style="font-size:0.8rem;color:var(--text2);margin-bottom:4px;">Games Played</div>
+            <div id="ownerGameCount" style="font-size:1.5rem;font-weight:700;color:var(--text);">0</div>
+          </div>
+        </div>
+        <h3 style="font-size:0.95rem;margin-bottom:8px;color:var(--text2);">Rake per Game</h3>
+        <div id="rakeChart" style="width:100%;overflow-x:auto;"></div>
+        <div id="rakeBreakdown" style="margin-top:12px;"></div>
       </div>
     </div>
   </div>
@@ -896,6 +928,18 @@
       <input type="password" id="pinInput" placeholder="Enter PIN..." onkeydown="if(event.key==='Enter')doLogin()">
       <button class="btn btn-primary" onclick="doLogin()">Login</button>
       <button class="btn btn-secondary" style="margin-top:8px" onclick="hideLogin()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Owner PIN Setup Modal -->
+  <div class="modal-overlay hidden" id="ownerSetupModal">
+    <div class="modal">
+      <h2>Set Up Owner PIN</h2>
+      <p style="font-size:0.85rem;color:var(--text2);margin-bottom:12px;">This PIN gives access to the rake dashboard and owner-level settings. It's separate from the admin PIN.</p>
+      <input type="password" id="ownerSetupPin" placeholder="Choose Owner PIN..." style="margin-bottom:8px;" onkeydown="if(event.key==='Enter')document.getElementById('ownerSetupConfirm').focus()">
+      <input type="password" id="ownerSetupConfirm" placeholder="Confirm Owner PIN..." onkeydown="if(event.key==='Enter')completeOwnerSetup()">
+      <button class="btn btn-primary" style="margin-top:8px;" onclick="completeOwnerSetup()">Set Owner PIN</button>
+      <button class="btn btn-secondary" style="margin-top:8px;" onclick="skipOwnerSetup()">Skip for Now</button>
     </div>
   </div>
 
@@ -928,37 +972,49 @@
     const RAKE_HOST = "Michael Jiao";
 
     // Smart rounding per game:
-    // - Winners: round DOWN to nearest dollar (e.g. +$46.15 -> +$46.00)
-    // - Losers: round UP toward zero (e.g. -$25.50 -> -$25.00, they pay less)
-    // - The difference (cents shaved off) goes to the host
+    // - Winners: floor to nearest dollar, then take the larger of:
+    //     a) Round down to nearest $5 (if >= $100)
+    //     b) Flat extra: <$50 = $1, $50-$99 = $2
+    //   whichever removes more
+    // - Losers: floor to nearest dollar (toward zero)
+    // - Host absorbs the difference to keep game zero-sum
     function getGameResultsWithRake(results) {
-      // 1. Floor ALL non-host players to nearest dollar per game
-      // 2. Small additional rake for big winners: up to $3 extra
-      //    Tiered: >$50 = $1, >$100 = $2, >$200 = $3
-      // Host absorbs the difference to keep game zero-sum
       const adj = {};
-      let othersRoundedTotal = 0;
+      let othersTotal = 0;
 
       Object.entries(results).forEach(([player, net]) => {
         if (player === RAKE_HOST) return;
-        // Floor everything first
-        let rounded = Math.floor(net / 100) * 100;
 
-        // Additional rake tiers on winners (applied after rounding)
-        if (rounded > 0) {
-          let extraRake = 0;
-          if (rounded >= 20000) extraRake = 300;       // >=$200 → $3
-          else if (rounded >= 10000) extraRake = 200;   // >=$100 → $2
-          else if (rounded >= 5000) extraRake = 100;    // >=$50  → $1
-          rounded -= extraRake;
+        if (net > 0) {
+          // Winners: floor to nearest dollar first
+          let floored = Math.floor(net / 100) * 100;
+
+          // Option A: round down to nearest $5 (only meaningful >= $100)
+          let roundTo5 = Math.floor(net / 500) * 500;
+
+          // Option B: flat extra on top of dollar floor
+          let flatExtra = 0;
+          if (floored >= 10000) flatExtra = 300;       // $100+ → $3 extra
+          else if (floored >= 5000) flatExtra = 200;   // $50+ → $2 extra
+          else flatExtra = 100;                         // under $50 → $1 extra
+          let withFlat = floored - flatExtra;
+
+          // Take whichever reduces more (lower value for the winner)
+          if (floored >= 10000) {
+            adj[player] = Math.min(roundTo5, withFlat);
+          } else {
+            adj[player] = withFlat;
+          }
+        } else {
+          // Losers: floor toward zero (e.g. -$25.50 → -$25)
+          adj[player] = Math.ceil(net / 100) * 100;
         }
 
-        adj[player] = rounded;
-        othersRoundedTotal += rounded;
+        othersTotal += adj[player];
       });
 
       // Host gets whatever keeps the game zero-sum
-      adj[RAKE_HOST] = -othersRoundedTotal;
+      adj[RAKE_HOST] = -othersTotal;
 
       return adj;
     }
@@ -978,6 +1034,7 @@
     // ========== STATE ==========
     let state = {
       isAdmin: false,
+      isOwner: false,
       players: [...DEFAULT_PLAYERS],
       games: [],
       credits: [],        // { from, to, amount, date } — settled payments that offset balances
@@ -1072,6 +1129,9 @@
         renderPlayerList();
         updateRakeDisplay();
       }
+      if (state.isOwner) {
+        renderOwnerDashboard();
+      }
     }
 
     function updateRakeDisplay() {
@@ -1093,29 +1153,46 @@
       if (!pin) return;
       const enteredHash = await hashPin(pin);
 
-      // Read stored hash from Firebase
-      const snap = await db.ref('pokerTracker/adminPinHash').once('value');
-      const storedHash = snap.val();
+      // Read stored hashes from Firebase
+      const [adminSnap, ownerSnap] = await Promise.all([
+        db.ref('pokerTracker/adminPinHash').once('value'),
+        db.ref('pokerTracker/ownerPinHash').once('value')
+      ]);
+      const adminHash = adminSnap.val();
+      const ownerHash = ownerSnap.val();
 
-      if (!storedHash) {
-        // No PIN set yet — first-time setup: store this PIN's hash
+      // Check owner PIN first
+      if (ownerHash && enteredHash === ownerHash) {
+        state.isAdmin = true;
+        state.isOwner = true;
+        hideLogin();
+        updateAuthUI();
+        return;
+      }
+
+      if (!adminHash) {
+        // No admin PIN set yet — first-time setup
         await db.ref('pokerTracker/adminPinHash').set(enteredHash);
         state.isAdmin = true;
         hideLogin();
         updateAuthUI();
         alert('Admin PIN has been set! Remember this PIN.');
+        // Prompt owner PIN setup if not set yet
+        if (!ownerHash) promptOwnerSetup();
         return;
       }
 
-      if (enteredHash === storedHash) {
+      if (enteredHash === adminHash) {
         state.isAdmin = true;
         hideLogin();
         updateAuthUI();
+        // Prompt owner PIN setup if not set yet
+        if (!ownerHash) promptOwnerSetup();
       } else {
         document.getElementById('loginError').classList.remove('hidden');
       }
     }
-    function logout() { state.isAdmin = false; updateAuthUI(); }
+    function logout() { state.isAdmin = false; state.isOwner = false; updateAuthUI(); }
 
     async function changePin() {
       if (!state.isAdmin) return;
@@ -1130,6 +1207,80 @@
       alert('Admin PIN updated!');
     }
 
+    function promptOwnerSetup() {
+      document.getElementById('ownerSetupModal').classList.remove('hidden');
+      document.getElementById('ownerSetupPin').value = '';
+      document.getElementById('ownerSetupConfirm').value = '';
+      document.getElementById('ownerSetupPin').focus();
+    }
+
+    async function completeOwnerSetup() {
+      const pin = document.getElementById('ownerSetupPin').value;
+      const confirm = document.getElementById('ownerSetupConfirm').value;
+      if (!pin || pin.length < 4) { alert('Owner PIN must be at least 4 characters.'); return; }
+      if (pin !== confirm) { alert('PINs do not match.'); return; }
+      const hash = await hashPin(pin);
+      await db.ref('pokerTracker/ownerPinHash').set(hash);
+      document.getElementById('ownerSetupModal').classList.add('hidden');
+      alert('Owner PIN has been set! Log in with it to access the rake dashboard.');
+    }
+
+    function skipOwnerSetup() {
+      document.getElementById('ownerSetupModal').classList.add('hidden');
+    }
+
+    async function changeOwnerPin() {
+      if (!state.isOwner) return;
+      const newPin = document.getElementById('newOwnerPinInput').value;
+      const confirmPin = document.getElementById('confirmOwnerPinInput').value;
+      if (!newPin || newPin.length < 4) { alert('PIN must be at least 4 characters.'); return; }
+      if (newPin !== confirmPin) { alert('PINs do not match.'); return; }
+      const newHash = await hashPin(newPin);
+      await db.ref('pokerTracker/ownerPinHash').set(newHash);
+      document.getElementById('newOwnerPinInput').value = '';
+      document.getElementById('confirmOwnerPinInput').value = '';
+      alert('Owner PIN updated!');
+    }
+
+    function renderOwnerDashboard() {
+      if (!state.isOwner) return;
+      let total = 0;
+      const perGame = [];
+      state.games.forEach(g => {
+        const hostRaw = g.results[RAKE_HOST] || 0;
+        const adj = getGameResultsWithRake(g.results);
+        const hostAdj = adj[RAKE_HOST] || 0;
+        const rake = hostAdj - hostRaw;
+        total += rake;
+        perGame.push({ name: g.name, date: g.dateStr, rake: rake });
+      });
+
+      document.getElementById('ownerTotalRake').textContent = formatMoney(total);
+      document.getElementById('ownerAvgRake').textContent = perGame.length ? formatMoney(Math.round(total / perGame.length)) : '$0.00';
+      document.getElementById('ownerGameCount').textContent = perGame.length;
+
+      // Bar chart
+      const chart = document.getElementById('rakeChart');
+      if (!perGame.length) { chart.innerHTML = '<p style="color:var(--text2);font-size:0.85rem;">No games yet.</p>'; document.getElementById('rakeBreakdown').innerHTML = ''; return; }
+      const maxRake = Math.max(...perGame.map(g => g.rake), 1);
+      chart.innerHTML = '<div style="display:flex;align-items:flex-end;gap:4px;height:120px;padding:4px 0;">' +
+        perGame.map((g, i) => {
+          const h = Math.max(4, Math.round((g.rake / maxRake) * 100));
+          return '<div style="flex:1;min-width:18px;max-width:40px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;" title="' + g.name + ': ' + formatMoney(g.rake) + '">' +
+            '<div style="font-size:0.6rem;color:var(--text2);margin-bottom:2px;">' + formatMoney(g.rake) + '</div>' +
+            '<div style="width:100%;height:' + h + '%;background:var(--accent);border-radius:4px 4px 0 0;min-height:4px;"></div>' +
+            '<div style="font-size:0.55rem;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40px;">' + (i + 1) + '</div></div>';
+        }).join('') + '</div>';
+
+      // Breakdown table
+      document.getElementById('rakeBreakdown').innerHTML =
+        '<table style="width:100%;font-size:0.8rem;"><thead><tr><th style="text-align:left;">Game</th><th style="text-align:left;">Date</th><th style="text-align:right;">Rake</th></tr></thead><tbody>' +
+        perGame.slice().reverse().map(g =>
+          '<tr><td>' + g.name + '</td><td style="color:var(--text2);">' + g.date + '</td><td style="text-align:right;color:var(--accent);font-weight:600;">' + formatMoney(g.rake) + '</td></tr>'
+        ).join('') +
+        '</tbody></table>';
+    }
+
     function updateAuthUI() {
       const badge = document.getElementById('modeBadge');
       const btn = document.getElementById('loginBtn');
@@ -1137,13 +1288,28 @@
       const managePlayers = document.getElementById('managePlayers');
       const dataManagement = document.getElementById('dataManagement');
       const settleActions = document.getElementById('settleActions');
-      if (state.isAdmin) {
+      const ownerDashboard = document.getElementById('ownerDashboard');
+      const ownerPinSection = document.getElementById('ownerPinSection');
+      if (state.isOwner) {
+        badge.textContent = 'Owner'; badge.className = 'mode-badge admin';
+        btn.textContent = 'Logout';
+        uploadTab.style.display = '';
+        if (managePlayers) managePlayers.style.display = '';
+        if (dataManagement) dataManagement.style.display = '';
+        if (settleActions) settleActions.classList.remove('hidden');
+        if (ownerDashboard) ownerDashboard.style.display = '';
+        if (ownerPinSection) ownerPinSection.style.display = '';
+        renderPlayerList();
+        renderOwnerDashboard();
+      } else if (state.isAdmin) {
         badge.textContent = 'Admin'; badge.className = 'mode-badge admin';
         btn.textContent = 'Logout';
         uploadTab.style.display = '';
         if (managePlayers) managePlayers.style.display = '';
         if (dataManagement) dataManagement.style.display = '';
         if (settleActions) settleActions.classList.remove('hidden');
+        if (ownerDashboard) ownerDashboard.style.display = 'none';
+        if (ownerPinSection) ownerPinSection.style.display = 'none';
         renderPlayerList();
       } else {
         badge.textContent = 'Viewer'; badge.className = 'mode-badge viewer';
@@ -1152,6 +1318,8 @@
         if (managePlayers) managePlayers.style.display = 'none';
         if (dataManagement) dataManagement.style.display = 'none';
         if (settleActions) settleActions.classList.add('hidden');
+        if (ownerDashboard) ownerDashboard.style.display = 'none';
+        if (ownerPinSection) ownerPinSection.style.display = 'none';
         if (currentTab === 'upload') {
           document.querySelector('.tab[data-tab="dashboard"]').click();
         }
