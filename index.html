@@ -781,6 +781,15 @@
           <tbody></tbody>
         </table>
       </div>
+      <div class="card" id="publicChartsCard" style="display:none;">
+        <h2>Game Trends</h2>
+        <h3 style="font-size:0.9rem;color:var(--text2);margin-bottom:8px;">Avg Game Volume Over Time</h3>
+        <div id="volumeOverTimeChart" style="width:100%;overflow-x:auto;"></div>
+        <h3 style="font-size:0.9rem;color:var(--text2);margin:16px 0 8px;">Win Rate by Player</h3>
+        <div id="winRateChart" style="width:100%;overflow-x:auto;"></div>
+        <h3 style="font-size:0.9rem;color:var(--text2);margin:16px 0 8px;">Games by Day of Week</h3>
+        <div id="dayOfWeekChart" style="width:100%;overflow-x:auto;"></div>
+      </div>
     </div>
 
     <!-- GAMES -->
@@ -1542,27 +1551,147 @@
 
       const grid = document.getElementById('statsGrid');
       const totalGames = state.games.length;
-      const totalVolume = Object.values(totals).reduce((s, v) => s + Math.abs(v), 0);
-      const biggestWinner = Object.entries(totals).sort((a, b) => b[1] - a[1])[0];
-      grid.innerHTML =
-        '<div class="stat-card"><div class="label">Total Games</div><div class="value">' + totalGames + '</div></div>' +
-        '<div class="stat-card"><div class="label">Active Players</div><div class="value">' + Object.keys(gameCounts).filter(p => gameCounts[p] > 0).length + '</div></div>' +
-        '<div class="stat-card"><div class="label">Biggest Winner</div><div class="value positive">' + (biggestWinner && biggestWinner[1] > 0 ? biggestWinner[0].split(' ')[0] : '\u2014') + '</div></div>' +
-        '<div class="stat-card"><div class="label">Total Volume</div><div class="value">' + formatMoney(totalVolume / 2) + '</div></div>';
+      const activePlayers = Object.keys(gameCounts).filter(p => gameCounts[p] > 0);
 
-      renderBarChart('overallChart', totals);
+      // Find most frequent player (exclude host)
+      const nonHostActive = activePlayers.filter(p => p !== RAKE_HOST);
+      const mostFrequent = nonHostActive.length ? nonHostActive.sort((a, b) => gameCounts[b] - gameCounts[a])[0] : null;
 
-      const tbody = document.querySelector('#standingsTable tbody');
-      const sorted = Object.entries(totals).filter(([p]) => gameCounts[p] > 0).sort((a, b) => b[1] - a[1]);
-      tbody.innerHTML = sorted.map(([player, net]) => {
-        const cls = net > 0 ? 'positive' : net < 0 ? 'negative' : 'zero';
-        const avg = gameCounts[player] ? net / gameCounts[player] : 0;
-        return '<tr><td>' + player + '</td><td>' + gameCounts[player] + '</td>' +
-          '<td class="' + cls + '">' + formatMoney(net, true) + '</td>' +
-          '<td class="positive">' + (bestGame[player] !== null ? formatMoney(bestGame[player], true) : '\u2014') + '</td>' +
-          '<td class="negative">' + (worstGame[player] !== null ? formatMoney(worstGame[player], true) : '\u2014') + '</td>' +
-          '<td class="' + (avg > 0 ? 'positive' : avg < 0 ? 'negative' : 'zero') + '">' + formatMoney(avg, true) + '</td></tr>';
-      }).join('');
+      if (state.isAdmin) {
+        // Admin: show full financial stats
+        const totalVolume = Object.values(totals).reduce((s, v) => s + Math.abs(v), 0);
+        const biggestWinner = Object.entries(totals).sort((a, b) => b[1] - a[1])[0];
+        grid.innerHTML =
+          '<div class="stat-card"><div class="label">Total Games</div><div class="value">' + totalGames + '</div></div>' +
+          '<div class="stat-card"><div class="label">Active Players</div><div class="value">' + activePlayers.length + '</div></div>' +
+          '<div class="stat-card"><div class="label">Biggest Winner</div><div class="value positive">' + (biggestWinner && biggestWinner[1] > 0 ? biggestWinner[0].split(' ')[0] : '\u2014') + '</div></div>' +
+          '<div class="stat-card"><div class="label">Total Volume</div><div class="value">' + formatMoney(totalVolume / 2) + '</div></div>';
+
+        renderBarChart('overallChart', totals);
+        document.getElementById('overallChart').style.display = '';
+        document.getElementById('publicChartsCard').style.display = 'none';
+
+        // Admin: full standings table with financials
+        document.querySelector('#standingsTable thead').innerHTML =
+          '<tr><th>Player</th><th>Games</th><th>Total Net</th><th>Best Game</th><th>Worst Game</th><th>Avg/Game</th></tr>';
+        const tbody = document.querySelector('#standingsTable tbody');
+        const sorted = Object.entries(totals).filter(([p]) => gameCounts[p] > 0).sort((a, b) => b[1] - a[1]);
+        tbody.innerHTML = sorted.map(([player, net]) => {
+          const cls = net > 0 ? 'positive' : net < 0 ? 'negative' : 'zero';
+          const avg = gameCounts[player] ? net / gameCounts[player] : 0;
+          return '<tr><td>' + player + '</td><td>' + gameCounts[player] + '</td>' +
+            '<td class="' + cls + '">' + formatMoney(net, true) + '</td>' +
+            '<td class="positive">' + (bestGame[player] !== null ? formatMoney(bestGame[player], true) : '\u2014') + '</td>' +
+            '<td class="negative">' + (worstGame[player] !== null ? formatMoney(worstGame[player], true) : '\u2014') + '</td>' +
+            '<td class="' + (avg > 0 ? 'positive' : avg < 0 ? 'negative' : 'zero') + '">' + formatMoney(avg, true) + '</td></tr>';
+        }).join('');
+      } else {
+        // Public: no financial info
+        const avgPlayersPerGame = totalGames ? Math.round(activePlayers.reduce((s, p) => s + gameCounts[p], 0) / totalGames * 10) / 10 : 0;
+        grid.innerHTML =
+          '<div class="stat-card"><div class="label">Total Games</div><div class="value">' + totalGames + '</div></div>' +
+          '<div class="stat-card"><div class="label">Active Players</div><div class="value">' + activePlayers.length + '</div></div>' +
+          '<div class="stat-card"><div class="label">Most Games</div><div class="value">' + (mostFrequent ? mostFrequent.split(' ')[0] : '\u2014') + '</div></div>' +
+          '<div class="stat-card"><div class="label">Avg Players/Game</div><div class="value">' + avgPlayersPerGame + '</div></div>';
+
+        // Hide bar chart for public
+        document.getElementById('overallChart').style.display = 'none';
+
+        // Public: just games played, no financials
+        document.querySelector('#standingsTable thead').innerHTML =
+          '<tr><th>Player</th><th>Games</th><th>Win Rate</th></tr>';
+        const tbody = document.querySelector('#standingsTable tbody');
+        const sorted = activePlayers.sort((a, b) => gameCounts[b] - gameCounts[a]);
+        tbody.innerHTML = sorted.map(player => {
+          const wins = state.games.filter(g => {
+            const adj = getGameResultsWithRake(g.results);
+            return adj[player] !== undefined && adj[player] > 0;
+          }).length;
+          const wr = gameCounts[player] ? Math.round((wins / gameCounts[player]) * 100) : 0;
+          return '<tr><td>' + player + '</td><td>' + gameCounts[player] + '</td><td>' + wr + '%</td></tr>';
+        }).join('');
+
+        // Show public charts
+        document.getElementById('publicChartsCard').style.display = '';
+        renderPublicCharts(gameCounts, activePlayers);
+      }
+    }
+
+    function renderPublicCharts(gameCounts, activePlayers) {
+      // === 1. Avg Game Volume Over Time (rolling average of total $ in play per game) ===
+      const volChart = document.getElementById('volumeOverTimeChart');
+      if (!state.games.length) {
+        volChart.innerHTML = '<p style="color:var(--text2);font-size:0.85rem;">No data yet.</p>';
+      } else {
+        // Calculate volume per game (sum of absolute values / 2)
+        const gameVolumes = state.games.map(g => {
+          const adj = getGameResultsWithRake(g.results);
+          return Object.values(adj).reduce((s, v) => s + Math.abs(v), 0) / 2;
+        });
+        // Rolling average (window of 3 or fewer)
+        const rolling = gameVolumes.map((v, i) => {
+          const start = Math.max(0, i - 2);
+          const window = gameVolumes.slice(start, i + 1);
+          return Math.round(window.reduce((a, b) => a + b, 0) / window.length);
+        });
+        const maxVol = Math.max(...rolling, 1);
+        volChart.innerHTML = '<div style="display:flex;align-items:flex-end;gap:3px;height:100px;">' +
+          rolling.map((v, i) => {
+            const h = Math.max(4, Math.round((v / maxVol) * 90));
+            const label = state.games[i].name.substring(0, 8);
+            return '<div style="flex:1;min-width:16px;max-width:50px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;" title="' + state.games[i].name + ': ' + formatMoney(v) + '">' +
+              '<div style="font-size:0.55rem;color:var(--text2);margin-bottom:2px;">' + formatMoney(v) + '</div>' +
+              '<div style="width:100%;height:' + h + '%;background:var(--accent);border-radius:4px 4px 0 0;min-height:4px;opacity:0.7;"></div>' +
+              '</div>';
+          }).join('') + '</div>' +
+          '<div style="font-size:0.7rem;color:var(--text2);margin-top:4px;text-align:center;">3-game rolling avg</div>';
+      }
+
+      // === 2. Win Rate % by Player (horizontal bar chart, exclude host) ===
+      const wrChart = document.getElementById('winRateChart');
+      const playerWinRates = activePlayers.filter(p => p !== RAKE_HOST).map(player => {
+        const wins = state.games.filter(g => {
+          const adj = getGameResultsWithRake(g.results);
+          return adj[player] !== undefined && adj[player] > 0;
+        }).length;
+        return { player, wr: gameCounts[player] ? Math.round((wins / gameCounts[player]) * 100) : 0, games: gameCounts[player] };
+      }).sort((a, b) => b.wr - a.wr);
+
+      if (!playerWinRates.length) {
+        wrChart.innerHTML = '<p style="color:var(--text2);font-size:0.85rem;">No data yet.</p>';
+      } else {
+        wrChart.innerHTML = playerWinRates.map(p => {
+          const barW = Math.max(2, p.wr);
+          const color = p.wr >= 50 ? 'var(--green)' : 'var(--red)';
+          return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
+            '<span style="width:80px;font-size:0.8rem;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + p.player.split(' ')[0] + '</span>' +
+            '<div style="flex:1;height:18px;background:var(--surface2);border-radius:4px;overflow:hidden;">' +
+            '<div style="height:100%;width:' + barW + '%;background:' + color + ';border-radius:4px;transition:width 0.3s;"></div></div>' +
+            '<span style="font-size:0.75rem;color:var(--text2);min-width:36px;">' + p.wr + '%</span></div>';
+        }).join('');
+      }
+
+      // === 3. Volume by Day of Week (histogram) ===
+      const dowChart = document.getElementById('dayOfWeekChart');
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const dayCounts = [0, 0, 0, 0, 0, 0, 0];
+      const dayVolumes = [0, 0, 0, 0, 0, 0, 0];
+      state.games.forEach(g => {
+        const d = new Date(g.date).getDay();
+        dayCounts[d]++;
+        const adj = getGameResultsWithRake(g.results);
+        dayVolumes[d] += Object.values(adj).reduce((s, v) => s + Math.abs(v), 0) / 2;
+      });
+      const maxDayCount = Math.max(...dayCounts, 1);
+      dowChart.innerHTML = '<div style="display:flex;align-items:flex-end;gap:6px;height:100px;">' +
+        dayNames.map((name, i) => {
+          const h = Math.max(0, Math.round((dayCounts[i] / maxDayCount) * 85));
+          const avgVol = dayCounts[i] ? formatMoney(Math.round(dayVolumes[i] / dayCounts[i])) : '$0';
+          return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;" title="' + name + ': ' + dayCounts[i] + ' games, avg vol ' + avgVol + '">' +
+            '<div style="font-size:0.6rem;color:var(--text2);margin-bottom:2px;">' + dayCounts[i] + '</div>' +
+            (h > 0 ? '<div style="width:100%;height:' + h + '%;background:var(--accent);border-radius:4px 4px 0 0;min-height:4px;"></div>' : '<div style="width:100%;height:4px;background:var(--surface2);border-radius:4px;"></div>') +
+            '<div style="font-size:0.7rem;color:var(--text2);margin-top:4px;font-weight:600;">' + name + '</div></div>';
+        }).join('') + '</div>';
     }
 
     function renderBarChart(containerId, totals) {
@@ -1599,13 +1728,27 @@
         const adjResults = getGameResultsWithRake(g.results);
         const sorted = Object.entries(adjResults).sort((a, b) => b[1] - a[1]);
         const delBtn = state.isAdmin ? ' <button class="btn btn-danger btn-small" style="margin-left:8px;" onclick="deleteGame(\'' + g.id + '\')">Delete</button>' : '';
-        return '<div class="game-card"><div class="game-card-header"><h3>' + g.name + '</h3><span class="game-date">' + g.dateStr + delBtn + '</span></div>' +
-          '<table><thead><tr><th>Player</th><th>Nickname</th><th>Net</th></tr></thead><tbody>' +
-          sorted.map(([player, net]) => {
-            const nick = Object.entries(g.nickMap || {}).find(([_, v]) => v === player);
-            const cls = net > 0 ? 'positive' : net < 0 ? 'negative' : 'zero';
-            return '<tr><td>' + player + '</td><td style="color:var(--text2)">' + (nick ? nick[0] : '\u2014') + '</td><td class="' + cls + '">' + formatMoney(net, true) + '</td></tr>';
-          }).join('') + '</tbody></table></div>';
+        const playerCount = Object.keys(adjResults).length;
+        if (state.isAdmin) {
+          // Admin: show full results with net amounts
+          return '<div class="game-card"><div class="game-card-header"><h3>' + g.name + '</h3><span class="game-date">' + g.dateStr + delBtn + '</span></div>' +
+            '<table><thead><tr><th>Player</th><th>Nickname</th><th>Net</th></tr></thead><tbody>' +
+            sorted.map(([player, net]) => {
+              const nick = Object.entries(g.nickMap || {}).find(([_, v]) => v === player);
+              const cls = net > 0 ? 'positive' : net < 0 ? 'negative' : 'zero';
+              return '<tr><td>' + player + '</td><td style="color:var(--text2)">' + (nick ? nick[0] : '\u2014') + '</td><td class="' + cls + '">' + formatMoney(net, true) + '</td></tr>';
+            }).join('') + '</tbody></table></div>';
+        } else {
+          // Public: show players and result (W/L) but no amounts
+          return '<div class="game-card"><div class="game-card-header"><h3>' + g.name + '</h3><span class="game-date">' + g.dateStr + '</span></div>' +
+            '<div style="font-size:0.8rem;color:var(--text2);margin-bottom:8px;">' + playerCount + ' players</div>' +
+            '<table><thead><tr><th>Player</th><th>Result</th></tr></thead><tbody>' +
+            sorted.map(([player, net]) => {
+              const cls = net > 0 ? 'positive' : net < 0 ? 'negative' : 'zero';
+              const label = net > 0 ? 'W' : net < 0 ? 'L' : 'Even';
+              return '<tr><td>' + player + '</td><td class="' + cls + '">' + label + '</td></tr>';
+            }).join('') + '</tbody></table></div>';
+        }
       }).join('');
     }
 
