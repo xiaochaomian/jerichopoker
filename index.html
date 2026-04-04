@@ -1780,25 +1780,95 @@
         if (Math.abs(r) > 1) balances[p] = r; // ignore sub-penny
       });
 
-      const debtors = [], creditors = [];
+      // Collect non-zero balance entries: [{player, amount}]
+      const entries = [];
       Object.entries(balances).forEach(([player, amount]) => {
-        if (amount < 0) debtors.push({ player, amount: -amount });
-        else if (amount > 0) creditors.push({ player, amount });
+        if (amount !== 0) entries.push({ player, amount });
       });
-      debtors.sort((a, b) => b.amount - a.amount);
-      creditors.sort((a, b) => b.amount - a.amount);
+      const n = entries.length;
+      if (n === 0) return { payments: [] };
 
-      const payments = [];
-      let di = 0, ci = 0;
-      while (di < debtors.length && ci < creditors.length) {
-        const pay = Math.min(debtors[di].amount, creditors[ci].amount);
-        if (pay > 1) {
-          payments.push({ from: debtors[di].player, to: creditors[ci].player, amount: Math.round(pay) });
+      // --- Bitmask DP to find maximum number of disjoint zero-sum subsets ---
+      // This minimizes total payments: total_txns = n - max_zero_sum_groups
+      const full = (1 << n) - 1;
+
+      // Precompute subset sums
+      const subsetSum = new Int32Array(1 << n);
+      for (let mask = 1; mask <= full; mask++) {
+        const lsb = mask & (-mask);
+        const bit = Math.log2(lsb) | 0;
+        subsetSum[mask] = subsetSum[mask ^ lsb] + entries[bit].amount;
+      }
+
+      // Collect all zero-sum subsets (with 2+ members)
+      const zeroSubs = [];
+      for (let mask = 3; mask <= full; mask++) {
+        if (subsetSum[mask] === 0) zeroSubs.push(mask);
+      }
+
+      // DP over bitmasks: dp[mask] = max # of disjoint zero-sum subsets
+      // covering exactly the bits in mask
+      const dp = new Int16Array(1 << n).fill(-1);
+      dp[0] = 0;
+
+      for (let mask = 1; mask <= full; mask++) {
+        // Try every zero-sum subset that fits within this mask
+        for (let i = 0; i < zeroSubs.length; i++) {
+          const zs = zeroSubs[i];
+          if ((zs & mask) !== zs) continue; // zs must be a subset of mask
+          const prev = mask ^ zs;
+          if (dp[prev] >= 0 && dp[prev] + 1 > dp[mask]) {
+            dp[mask] = dp[prev] + 1;
+          }
         }
-        debtors[di].amount -= pay;
-        creditors[ci].amount -= pay;
-        if (debtors[di].amount < 1) di++;
-        if (creditors[ci].amount < 1) ci++;
+      }
+
+      // Backtrack to recover which zero-sum subsets were chosen
+      const groups = [];
+      let remain = full;
+      if (dp[full] > 0) {
+        while (remain !== 0) {
+          let found = false;
+          for (let i = 0; i < zeroSubs.length; i++) {
+            const zs = zeroSubs[i];
+            if ((zs & remain) !== zs) continue;
+            if (dp[remain ^ zs] === dp[remain] - 1) {
+              groups.push(zs);
+              remain ^= zs;
+              found = true;
+              break;
+            }
+          }
+          if (!found) break; // remaining players couldn't form zero-sum groups
+        }
+      }
+      // Any leftover players form one final group
+      if (remain !== 0) groups.push(remain);
+
+      // --- Greedy two-pointer solver within each group ---
+      const payments = [];
+      for (const groupMask of groups) {
+        const debtors = [], creditors = [];
+        for (let i = 0; i < n; i++) {
+          if (!(groupMask & (1 << i))) continue;
+          const e = entries[i];
+          if (e.amount < 0) debtors.push({ player: e.player, amount: -e.amount });
+          else if (e.amount > 0) creditors.push({ player: e.player, amount: e.amount });
+        }
+        debtors.sort((a, b) => b.amount - a.amount);
+        creditors.sort((a, b) => b.amount - a.amount);
+
+        let di = 0, ci = 0;
+        while (di < debtors.length && ci < creditors.length) {
+          const pay = Math.min(debtors[di].amount, creditors[ci].amount);
+          if (pay > 1) {
+            payments.push({ from: debtors[di].player, to: creditors[ci].player, amount: Math.round(pay) });
+          }
+          debtors[di].amount -= pay;
+          creditors[ci].amount -= pay;
+          if (debtors[di].amount < 1) di++;
+          if (creditors[ci].amount < 1) ci++;
+        }
       }
       return { payments };
     }
