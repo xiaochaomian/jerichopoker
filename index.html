@@ -4,6 +4,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Poker Tracker (jericho)</title>
   <!-- Firebase SDK (compat for simple inline usage) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -1539,8 +1542,7 @@
       state.players.forEach(p => { totals[p] = 0; gameCounts[p] = 0; bestGame[p] = null; worstGame[p] = null; });
 
       state.games.forEach(g => {
-        const adjResults = getGameResultsWithRake(g.results);
-        Object.entries(adjResults).forEach(([player, net]) => {
+        Object.entries(g.results).forEach(([player, net]) => {
           if (totals[player] === undefined) totals[player] = 0;
           totals[player] += net;
           gameCounts[player] = (gameCounts[player] || 0) + 1;
@@ -1604,8 +1606,7 @@
         const sorted = activePlayers.filter(p => p !== RAKE_HOST).sort((a, b) => gameCounts[b] - gameCounts[a]);
         tbody.innerHTML = sorted.map(player => {
           const wins = state.games.filter(g => {
-            const adj = getGameResultsWithRake(g.results);
-            return adj[player] !== undefined && adj[player] > 0;
+            return g.results[player] !== undefined && g.results[player] > 0;
           }).length;
           const wr = gameCounts[player] ? Math.round((wins / gameCounts[player]) * 100) : 0;
           return '<tr><td>' + player + '</td><td>' + gameCounts[player] + '</td><td>' + wr + '%</td></tr>';
@@ -1625,8 +1626,7 @@
       } else {
         // Calculate volume per game (sum of absolute values / 2)
         const gameVolumes = state.games.map(g => {
-          const adj = getGameResultsWithRake(g.results);
-          return Object.values(adj).reduce((s, v) => s + Math.abs(v), 0) / 2;
+          return Object.values(g.results).reduce((s, v) => s + Math.abs(v), 0) / 2;
         });
         // Rolling average (window of 3 or fewer)
         const rolling = gameVolumes.map((v, i) => {
@@ -1651,8 +1651,7 @@
       const wrChart = document.getElementById('winRateChart');
       const playerWinRates = activePlayers.filter(p => p !== RAKE_HOST).map(player => {
         const wins = state.games.filter(g => {
-          const adj = getGameResultsWithRake(g.results);
-          return adj[player] !== undefined && adj[player] > 0;
+          return g.results[player] !== undefined && g.results[player] > 0;
         }).length;
         return { player, wr: gameCounts[player] ? Math.round((wins / gameCounts[player]) * 100) : 0, games: gameCounts[player] };
       }).sort((a, b) => b.wr - a.wr);
@@ -1679,8 +1678,7 @@
       state.games.forEach(g => {
         const d = new Date(g.date).getDay();
         dayCounts[d]++;
-        const adj = getGameResultsWithRake(g.results);
-        dayVolumes[d] += Object.values(adj).reduce((s, v) => s + Math.abs(v), 0) / 2;
+        dayVolumes[d] += Object.values(g.results).reduce((s, v) => s + Math.abs(v), 0) / 2;
       });
       const maxDayCount = Math.max(...dayCounts, 1);
       dowChart.innerHTML = '<div style="display:flex;align-items:flex-end;gap:6px;height:100px;">' +
@@ -1725,8 +1723,7 @@
       if (!state.games.length) { list.innerHTML = ''; noGames.classList.remove('hidden'); return; }
       noGames.classList.add('hidden');
       list.innerHTML = state.games.slice().reverse().map(g => {
-        const adjResults = getGameResultsWithRake(g.results);
-        const sorted = Object.entries(adjResults).sort((a, b) => b[1] - a[1]);
+        const sorted = Object.entries(g.results).sort((a, b) => b[1] - a[1]);
         const delBtn = state.isAdmin ? ' <button class="btn btn-danger btn-small" style="margin-left:8px;" onclick="deleteGame(\'' + g.id + '\')">Delete</button>' : '';
         return '<div class="game-card"><div class="game-card-header"><h3>' + g.name + '</h3><span class="game-date">' + g.dateStr + delBtn + '</span></div>' +
           '<table><thead><tr><th>Player</th><th>Nickname</th><th>Net</th></tr></thead><tbody>' +
@@ -1844,6 +1841,8 @@
       }
       // Any leftover players form one final group
       if (remain !== 0) groups.push(remain);
+
+      console.log('[OptimalPayments] n=' + n + ', zeroSumSubsets=' + zeroSubs.length + ', groups=' + groups.length + ', expectedPayments=' + (n - groups.length));
 
       // --- Greedy two-pointer solver within each group ---
       const payments = [];
