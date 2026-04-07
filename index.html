@@ -703,6 +703,222 @@
       color: var(--red);
     }
 
+    /* Date range filter */
+    .date-filter {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .date-filter-btn {
+      padding: 5px 14px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text2);
+      cursor: pointer;
+      font-size: 0.78rem;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .date-filter-btn.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .date-filter-btn:hover:not(.active) {
+      background: var(--surface2);
+      color: var(--text);
+    }
+
+    /* Edit game modal */
+    .edit-modal {
+      width: 480px;
+      max-width: 95vw;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .edit-modal .edit-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .edit-modal .edit-row:last-child {
+      border-bottom: none;
+    }
+
+    .edit-modal .edit-player {
+      flex: 1;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .edit-modal .edit-input {
+      width: 120px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      font-size: 0.9rem;
+      text-align: right;
+    }
+
+    .edit-modal .edit-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    /* Settlement history */
+    .history-entry {
+      padding: 12px 14px;
+      background: var(--surface2);
+      border-radius: var(--radius);
+      margin-bottom: 6px;
+      font-size: 0.82rem;
+    }
+
+    .history-entry .history-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+      color: var(--text2);
+      font-size: 0.75rem;
+    }
+
+    .history-entry .history-items {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .history-item {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .history-item .from { color: var(--red); font-weight: 600; }
+    .history-item .to { color: var(--green); font-weight: 600; }
+    .history-item .amt { color: var(--gold); margin-left: auto; font-weight: 600; }
+
+    /* Payment Activity Log */
+    .pal-controls {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .pal-entry {
+      padding: 10px 14px;
+      background: var(--surface2);
+      border-radius: var(--radius);
+      margin-bottom: 4px;
+      font-size: 0.82rem;
+      border-left: 3px solid var(--border);
+      transition: background 0.15s;
+    }
+
+    .pal-entry:hover {
+      background: #2a2d3e;
+    }
+
+    .pal-entry.type-mark_paid { border-left-color: var(--green); }
+    .pal-entry.type-mark_unpaid { border-left-color: var(--red); }
+    .pal-entry.type-settle_marked { border-left-color: var(--accent2); }
+    .pal-entry.type-settle_all { border-left-color: var(--gold); }
+    .pal-entry.type-adjustment_add { border-left-color: #74b9ff; }
+    .pal-entry.type-adjustment_delete { border-left-color: #fd79a8; }
+
+    .pal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+
+    .pal-type-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .pal-type-badge.mark_paid { background: rgba(0,184,148,0.15); color: var(--green); }
+    .pal-type-badge.mark_unpaid { background: rgba(225,112,85,0.15); color: var(--red); }
+    .pal-type-badge.settle_marked { background: rgba(108,92,231,0.15); color: var(--accent2); }
+    .pal-type-badge.settle_all { background: rgba(253,203,110,0.15); color: var(--gold); }
+    .pal-type-badge.adjustment_add { background: rgba(116,185,255,0.15); color: #74b9ff; }
+    .pal-type-badge.adjustment_delete { background: rgba(253,121,168,0.15); color: #fd79a8; }
+
+    .pal-date {
+      color: var(--text2);
+      font-size: 0.72rem;
+    }
+
+    .pal-detail {
+      color: var(--text);
+      font-size: 0.82rem;
+    }
+
+    .pal-detail .player-name {
+      font-weight: 600;
+      color: var(--gold);
+    }
+
+    .pal-detail .amount {
+      font-weight: 600;
+    }
+
+    .pal-sub-items {
+      margin-top: 4px;
+      padding-left: 12px;
+      border-left: 1px solid var(--border);
+    }
+
+    .pal-sub-item {
+      font-size: 0.78rem;
+      color: var(--text2);
+      padding: 2px 0;
+    }
+
+    /* Toast notification */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--surface);
+      border: 1px solid var(--green);
+      border-radius: var(--radius);
+      padding: 12px 20px;
+      font-size: 0.85rem;
+      color: var(--green);
+      font-weight: 600;
+      z-index: 2000;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.3s;
+      pointer-events: none;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
     @media (max-width:768px) {
       header {
         padding: 12px 16px;
@@ -766,6 +982,13 @@
 
     <!-- DASHBOARD -->
     <div id="tab-dashboard">
+      <div class="date-filter" id="dateFilter">
+        <span style="font-size:0.78rem;color:var(--text2);font-weight:600;">Show:</span>
+        <button class="date-filter-btn active" onclick="setDateFilter('all', this)">All Time</button>
+        <button class="date-filter-btn" onclick="setDateFilter('7', this)">Last 7 Days</button>
+        <button class="date-filter-btn" onclick="setDateFilter('30', this)">Last 30 Days</button>
+        <button class="date-filter-btn" onclick="setDateFilter('90', this)">Last 90 Days</button>
+      </div>
       <div class="stats-grid" id="statsGrid"></div>
       <div class="card">
         <h2>Overall Standings</h2>
@@ -809,8 +1032,10 @@
     <div id="tab-payments" class="hidden">
       <div class="card">
         <h2>Settlement Payments</h2>
-        <div class="settle-info">Minimum payments to settle all debts. Amounts are rounded to the nearest dollar per
-          game.</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+          <div class="settle-info" style="margin-bottom:0;">Minimum payments to settle all debts. Amounts are rounded to the nearest dollar.</div>
+          <button class="btn btn-secondary btn-small" onclick="copyPaymentSummary()" id="copyPaymentsBtn" style="display:none;">Copy to Clipboard</button>
+        </div>
         <div id="paymentsList"></div>
         <p id="noPayments" class="hidden" style="color:var(--text2);text-align:center;padding:40px;">All settled up!</p>
         <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;" id="settleActions" class="hidden">
@@ -819,6 +1044,13 @@
           <button class="btn btn-primary" id="settleAllBtn" onclick="settleAll()">Settle All</button>
           <span style="font-size:0.8rem;color:var(--text2);align-self:center;">Settles transactions and resets
             balances.</span>
+        </div>
+
+        <!-- Settlement History -->
+        <div id="settlementHistory" class="adjustments-section" style="display:none;">
+          <h3>Settlement History</h3>
+          <p class="section-desc">Past settlement rounds showing who paid whom and when.</p>
+          <div id="historyLog" style="max-height:300px;overflow-y:auto;"></div>
         </div>
 
         <!-- Manual Adjustments (admin only) -->
@@ -836,6 +1068,29 @@
             <button class="btn btn-primary btn-small" onclick="addManualAdjustment()">Apply</button>
           </div>
           <div id="adjLog" class="adj-log"></div>
+        </div>
+
+        <!-- Payment Activity Log (always visible) -->
+        <div id="paymentActivityLog" class="adjustments-section" style="display:none;">
+          <h3>Payment Activity Log</h3>
+          <p class="section-desc">Complete chronological record of every payment action for full interpretability.</p>
+          <div class="pal-controls">
+            <select id="palFilterType" onchange="renderPaymentActivityLog()">
+              <option value="all">All events</option>
+              <option value="mark_paid">Marked paid</option>
+              <option value="mark_unpaid">Marked unpaid</option>
+              <option value="settle_marked">Batch settle (marked)</option>
+              <option value="settle_all">Settle all</option>
+              <option value="adjustment_add">Adjustment added</option>
+              <option value="adjustment_delete">Adjustment removed</option>
+            </select>
+            <select id="palFilterPlayer" onchange="renderPaymentActivityLog()">
+              <option value="all">All players</option>
+            </select>
+            <button class="btn btn-secondary btn-small" onclick="exportPaymentHistory()">Export Log</button>
+          </div>
+          <div id="palEntries" style="max-height:400px;overflow-y:auto;"></div>
+          <div id="palEmpty" style="display:none;color:var(--text2);text-align:center;padding:24px;font-size:0.85rem;">No payment activity recorded yet.</div>
         </div>
       </div>
     </div>
@@ -942,6 +1197,25 @@
       <button class="btn btn-secondary" style="margin-top:8px" onclick="hideLogin()">Cancel</button>
     </div>
   </div>
+
+  <!-- Edit Game Modal -->
+  <div class="modal-overlay hidden" id="editGameModal">
+    <div class="modal edit-modal">
+      <h2>Edit Game Results</h2>
+      <p style="font-size:0.82rem;color:var(--text2);margin-bottom:12px;" id="editGameName"></p>
+      <div id="editGameRows"></div>
+      <div style="margin-top:16px;">
+        <p id="editGameBalance" style="font-size:0.8rem;margin-bottom:12px;"></p>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn btn-secondary" onclick="closeEditGame()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveEditGame()">Save Changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
 
   <!-- Owner PIN Setup Modal -->
   <div class="modal-overlay hidden" id="ownerSetupModal">
@@ -1053,10 +1327,12 @@
       settledPayments: {}, // "from|to|amount" -> true (individual toggles before batch settle)
       nickMemory: {},
       manualAdjustments: [], // { player, amount (cents), reason, date } — manual balance tweaks
+      paymentHistory: [],   // chronological log of all payment events for interpretability
     };
 
     let currentTab = 'dashboard';
     let firebaseReady = false;
+    let dateFilterDays = 'all'; // 'all', '7', '30', '90'
 
     // ========== FIREBASE SYNC ==========
     function dbRef(path) { return db.ref('pokerTracker/' + path); }
@@ -1071,6 +1347,7 @@
           state.settledPayments = data.settledPayments || {};
           state.nickMemory = data.nickMemory || {};
           state.manualAdjustments = data.manualAdjustments || [];
+          state.paymentHistory = data.paymentHistory || [];
         }
         firebaseReady = true;
         updateSyncBadge(true);
@@ -1097,6 +1374,7 @@
         settledPayments: state.settledPayments,
         nickMemory: state.nickMemory,
         manualAdjustments: state.manualAdjustments,
+        paymentHistory: state.paymentHistory,
       };
       // Save to Firebase
       dbRef('state').set(payload).catch((err) => {
@@ -1118,6 +1396,7 @@
           state.settledPayments = parsed.settledPayments || {};
           state.nickMemory = parsed.nickMemory || {};
           state.manualAdjustments = parsed.manualAdjustments || [];
+          state.paymentHistory = parsed.paymentHistory || [];
         }
       } catch (e) { }
     }
@@ -1536,12 +1815,28 @@
       renderPlayerList();
     }
 
+    // ========== DATE FILTER ==========
+    function setDateFilter(days, btn) {
+      dateFilterDays = days;
+      document.querySelectorAll('.date-filter-btn').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      renderDashboard();
+    }
+
+    function getFilteredGames() {
+      if (dateFilterDays === 'all') return state.games;
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - parseInt(dateFilterDays));
+      return state.games.filter(g => new Date(g.date) >= cutoff);
+    }
+
     // ========== DASHBOARD ==========
     function renderDashboard() {
       const totals = {}, gameCounts = {}, bestGame = {}, worstGame = {};
       state.players.forEach(p => { totals[p] = 0; gameCounts[p] = 0; bestGame[p] = null; worstGame[p] = null; });
 
-      state.games.forEach(g => {
+      const filteredGames = getFilteredGames();
+      filteredGames.forEach(g => {
         Object.entries(g.results).forEach(([player, net]) => {
           if (totals[player] === undefined) totals[player] = 0;
           totals[player] += net;
@@ -1552,7 +1847,7 @@
       });
 
       const grid = document.getElementById('statsGrid');
-      const totalGames = state.games.length;
+      const totalGames = filteredGames.length;
       const activePlayers = Object.keys(gameCounts).filter(p => gameCounts[p] > 0);
 
       // Find most frequent player (exclude host)
@@ -1605,7 +1900,7 @@
         const tbody = document.querySelector('#standingsTable tbody');
         const sorted = activePlayers.filter(p => p !== RAKE_HOST).sort((a, b) => gameCounts[b] - gameCounts[a]);
         tbody.innerHTML = sorted.map(player => {
-          const wins = state.games.filter(g => {
+          const wins = filteredGames.filter(g => {
             return g.results[player] !== undefined && g.results[player] > 0;
           }).length;
           const wr = gameCounts[player] ? Math.round((wins / gameCounts[player]) * 100) : 0;
@@ -1614,18 +1909,19 @@
 
         // Show public charts
         document.getElementById('publicChartsCard').style.display = '';
-        renderPublicCharts(gameCounts, activePlayers);
+        renderPublicCharts(gameCounts, activePlayers, filteredGames);
       }
     }
 
-    function renderPublicCharts(gameCounts, activePlayers) {
+    function renderPublicCharts(gameCounts, activePlayers, games) {
+      if (!games) games = state.games;
       // === 1. Avg Game Volume Over Time (rolling average of total $ in play per game) ===
       const volChart = document.getElementById('volumeOverTimeChart');
-      if (!state.games.length) {
+      if (!games.length) {
         volChart.innerHTML = '<p style="color:var(--text2);font-size:0.85rem;">No data yet.</p>';
       } else {
         // Calculate volume per game (sum of absolute values / 2)
-        const gameVolumes = state.games.map(g => {
+        const gameVolumes = games.map(g => {
           return Object.values(g.results).reduce((s, v) => s + Math.abs(v), 0) / 2;
         });
         // Rolling average (window of 3 or fewer)
@@ -1638,8 +1934,7 @@
         volChart.innerHTML = '<div style="display:flex;align-items:flex-end;gap:3px;height:100px;">' +
           rolling.map((v, i) => {
             const h = Math.max(4, Math.round((v / maxVol) * 90));
-            const label = state.games[i].name.substring(0, 8);
-            return '<div style="flex:1;min-width:16px;max-width:50px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;" title="' + state.games[i].name + ': ' + formatMoney(v) + '">' +
+            return '<div style="flex:1;min-width:16px;max-width:50px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;" title="' + games[i].name + ': ' + formatMoney(v) + '">' +
               '<div style="font-size:0.55rem;color:var(--text2);margin-bottom:2px;">' + formatMoney(v) + '</div>' +
               '<div style="width:100%;height:' + h + '%;background:var(--accent);border-radius:4px 4px 0 0;min-height:4px;opacity:0.7;"></div>' +
               '</div>';
@@ -1650,7 +1945,7 @@
       // === 2. Win Rate % by Player (horizontal bar chart, exclude host) ===
       const wrChart = document.getElementById('winRateChart');
       const playerWinRates = activePlayers.filter(p => p !== RAKE_HOST).map(player => {
-        const wins = state.games.filter(g => {
+        const wins = games.filter(g => {
           return g.results[player] !== undefined && g.results[player] > 0;
         }).length;
         return { player, wr: gameCounts[player] ? Math.round((wins / gameCounts[player]) * 100) : 0, games: gameCounts[player] };
@@ -1675,7 +1970,7 @@
       const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const dayCounts = [0, 0, 0, 0, 0, 0, 0];
       const dayVolumes = [0, 0, 0, 0, 0, 0, 0];
-      state.games.forEach(g => {
+      games.forEach(g => {
         const d = new Date(g.date).getDay();
         dayCounts[d]++;
         dayVolumes[d] += Object.values(g.results).reduce((s, v) => s + Math.abs(v), 0) / 2;
@@ -1724,8 +2019,9 @@
       noGames.classList.add('hidden');
       list.innerHTML = state.games.slice().reverse().map(g => {
         const sorted = Object.entries(g.results).sort((a, b) => b[1] - a[1]);
-        const delBtn = state.isAdmin ? ' <button class="btn btn-danger btn-small" style="margin-left:8px;" onclick="deleteGame(\'' + g.id + '\')">Delete</button>' : '';
-        return '<div class="game-card"><div class="game-card-header"><h3>' + g.name + '</h3><span class="game-date">' + g.dateStr + delBtn + '</span></div>' +
+        const editBtn = state.isAdmin ? ' <button class="btn btn-secondary btn-small" style="margin-left:8px;" onclick="openEditGame(\'' + g.id + '\')">Edit</button>' : '';
+        const delBtn = state.isAdmin ? '<button class="btn btn-danger btn-small" style="margin-left:4px;" onclick="deleteGame(\'' + g.id + '\')">Delete</button>' : '';
+        return '<div class="game-card"><div class="game-card-header"><h3>' + g.name + '</h3><span class="game-date">' + g.dateStr + editBtn + delBtn + '</span></div>' +
           '<table><thead><tr><th>Player</th><th>Nickname</th><th>Net</th></tr></thead><tbody>' +
           sorted.map(([player, net]) => {
             const nick = Object.entries(g.nickMap || {}).find(([_, v]) => v === player);
@@ -1769,6 +2065,27 @@
       return balances;
     }
 
+    function greedyPayments(entries) {
+      const debtors = [], creditors = [];
+      entries.forEach(e => {
+        if (e.amount < 0) debtors.push({ player: e.player, amount: -e.amount });
+        else if (e.amount > 0) creditors.push({ player: e.player, amount: e.amount });
+      });
+      debtors.sort((a, b) => b.amount - a.amount);
+      creditors.sort((a, b) => b.amount - a.amount);
+      const payments = [];
+      let di = 0, ci = 0;
+      while (di < debtors.length && ci < creditors.length) {
+        const pay = Math.min(debtors[di].amount, creditors[ci].amount);
+        if (pay >= 100) payments.push({ from: debtors[di].player, to: creditors[ci].player, amount: pay });
+        debtors[di].amount -= pay;
+        creditors[ci].amount -= pay;
+        if (debtors[di].amount < 100) di++;
+        if (creditors[ci].amount < 100) ci++;
+      }
+      return { payments };
+    }
+
     function minimumPayments(balancesRaw) {
       // 1. Round all balances to the nearest dollar (values are in cents)
       const rounded = {};
@@ -1794,6 +2111,12 @@
       });
       const n = entries.length;
       if (n === 0) return { payments: [] };
+
+      // Safety cap: DP is O(2^n), fall back to greedy for >20 players
+      if (n > 20) {
+        console.log('[OptimalPayments] n=' + n + ' exceeds cap, using greedy fallback');
+        return greedyPayments(entries);
+      }
 
       // --- Bitmask DP to find maximum number of disjoint zero-sum subsets ---
       // This minimizes total payments: total_txns = n - max_zero_sum_groups
@@ -1882,6 +2205,17 @@
       return { payments };
     }
 
+    // ========== PAYMENT HISTORY LOGGING ==========
+    function logPaymentEvent(type, details) {
+      if (!state.paymentHistory) state.paymentHistory = [];
+      state.paymentHistory.push({
+        id: Date.now() + '-' + Math.random().toString(36).substr(2, 6),
+        type: type,          // 'mark_paid', 'mark_unpaid', 'settle_marked', 'settle_all', 'adjustment_add', 'adjustment_delete'
+        details: details,    // { from, to, amount, player, reason, payments, ... }
+        date: new Date().toISOString(),
+      });
+    }
+
     function paymentKey(p) { return p.from + '|' + p.to + '|' + p.amount; }
     function isPaymentSettled(p) { return !!(state.settledPayments && state.settledPayments[paymentKey(p)]); }
 
@@ -1889,8 +2223,14 @@
       if (!state.isAdmin) return;
       const key = from + '|' + to + '|' + amount;
       if (!state.settledPayments) state.settledPayments = {};
-      if (state.settledPayments[key]) delete state.settledPayments[key];
-      else state.settledPayments[key] = true;
+      const wasPaid = !!state.settledPayments[key];
+      if (wasPaid) {
+        delete state.settledPayments[key];
+        logPaymentEvent('mark_unpaid', { from, to, amount });
+      } else {
+        state.settledPayments[key] = true;
+        logPaymentEvent('mark_paid', { from, to, amount });
+      }
       saveState();
       renderPayments();
     }
@@ -1903,14 +2243,19 @@
       const balances = calcNetBalances();
       const { payments } = minimumPayments(balances);
 
+      const copyBtn = document.getElementById('copyPaymentsBtn');
       if (!payments.length) {
         list.innerHTML = '';
         noPayments.classList.remove('hidden');
         if (settleActions) settleActions.classList.add('hidden');
+        if (copyBtn) copyBtn.style.display = 'none';
         renderAdjustmentsSection();
+        renderSettlementHistory();
+        renderPaymentActivityLog();
         return;
       }
       noPayments.classList.add('hidden');
+      if (copyBtn) copyBtn.style.display = '';
 
       const settledCount = payments.filter(p => isPaymentSettled(p)).length;
 
@@ -1940,6 +2285,8 @@
       }
 
       renderAdjustmentsSection();
+      renderSettlementHistory();
+      renderPaymentActivityLog();
     }
 
     function settleMarkedPayments() {
@@ -1953,6 +2300,7 @@
 
       // Convert marked payments into credits
       if (!state.credits) state.credits = [];
+      const settledList = [];
       markedPayments.forEach(p => {
         state.credits.push({
           from: p.from,
@@ -1960,9 +2308,11 @@
           amount: p.amount,
           date: new Date().toISOString(),
         });
+        settledList.push({ from: p.from, to: p.to, amount: p.amount });
         delete state.settledPayments[paymentKey(p)];
       });
 
+      logPaymentEvent('settle_marked', { payments: settledList, count: settledList.length });
       saveState();
       renderPayments();
     }
@@ -1975,6 +2325,7 @@
       if (!confirm('Settle ALL ' + payments.length + ' payment(s)? This resets all balances to zero.')) return;
 
       if (!state.credits) state.credits = [];
+      const settledList = [];
       payments.forEach(p => {
         state.credits.push({
           from: p.from,
@@ -1982,10 +2333,12 @@
           amount: p.amount,
           date: new Date().toISOString(),
         });
+        settledList.push({ from: p.from, to: p.to, amount: p.amount });
       });
       // Clear any individual toggles and manual adjustments (balances are now zero)
       state.settledPayments = {};
       state.manualAdjustments = [];
+      logPaymentEvent('settle_all', { payments: settledList, count: settledList.length });
       saveState();
       renderPayments();
     }
@@ -2008,13 +2361,15 @@
       const amount = direction === 'decrease' ? cents : -cents;
 
       if (!state.manualAdjustments) state.manualAdjustments = [];
+      const adjReason = reason || (direction === 'decrease' ? 'Debt reduced' : 'Debt increased');
       state.manualAdjustments.push({
         player,
         amount,
-        reason: reason || (direction === 'decrease' ? 'Debt reduced' : 'Debt increased'),
+        reason: adjReason,
         date: new Date().toISOString(),
       });
 
+      logPaymentEvent('adjustment_add', { player, amount, reason: adjReason, direction });
       saveState();
       document.getElementById('adjAmount').value = '';
       document.getElementById('adjReason').value = '';
@@ -2024,6 +2379,10 @@
     function deleteManualAdjustment(index) {
       if (!state.isAdmin) return;
       if (!confirm('Remove this adjustment?')) return;
+      const removed = state.manualAdjustments[index];
+      if (removed) {
+        logPaymentEvent('adjustment_delete', { player: removed.player, amount: removed.amount, reason: removed.reason });
+      }
       state.manualAdjustments.splice(index, 1);
       saveState();
       renderPayments();
@@ -2068,6 +2427,278 @@
       }).reverse().join('');
     }
 
+    // ========== EDIT GAME ==========
+    let editingGameId = null;
+
+    function openEditGame(id) {
+      if (!state.isAdmin) return;
+      const game = state.games.find(g => g.id === id);
+      if (!game) return;
+      editingGameId = id;
+      document.getElementById('editGameName').textContent = game.name + ' — ' + game.dateStr;
+      const rows = document.getElementById('editGameRows');
+      const sorted = Object.entries(game.results).sort((a, b) => b[1] - a[1]);
+      rows.innerHTML = sorted.map(([player, net]) => {
+        const dollars = (net / 100).toFixed(2);
+        return '<div class="edit-row">' +
+          '<span class="edit-player">' + player + '</span>' +
+          '<input class="edit-input" type="number" step="0.01" data-player="' + player + '" value="' + dollars + '">' +
+          '</div>';
+      }).join('');
+      updateEditBalance();
+      // Listen for input changes
+      rows.querySelectorAll('.edit-input').forEach(inp => {
+        inp.addEventListener('input', updateEditBalance);
+      });
+      document.getElementById('editGameModal').classList.remove('hidden');
+    }
+
+    function updateEditBalance() {
+      const inputs = document.querySelectorAll('#editGameRows .edit-input');
+      let total = 0;
+      inputs.forEach(inp => { total += parseFloat(inp.value) || 0; });
+      const el = document.getElementById('editGameBalance');
+      const totalCents = Math.round(total * 100);
+      if (Math.abs(totalCents) <= 1) {
+        el.innerHTML = '<span style="color:var(--green);">Balance: $0.00 &#10003;</span>';
+      } else {
+        el.innerHTML = '<span style="color:var(--red);">Balance: ' + (total > 0 ? '+' : '') + '$' + Math.abs(total).toFixed(2) + ' (must be $0.00)</span>';
+      }
+    }
+
+    function closeEditGame() {
+      editingGameId = null;
+      document.getElementById('editGameModal').classList.add('hidden');
+    }
+
+    function saveEditGame() {
+      if (!editingGameId) return;
+      const game = state.games.find(g => g.id === editingGameId);
+      if (!game) return;
+      const inputs = document.querySelectorAll('#editGameRows .edit-input');
+      let total = 0;
+      const newResults = {};
+      inputs.forEach(inp => {
+        const player = inp.dataset.player;
+        const dollars = parseFloat(inp.value) || 0;
+        const cents = Math.round(dollars * 100);
+        newResults[player] = cents;
+        total += cents;
+      });
+      if (Math.abs(total) > 1) {
+        alert('Results must sum to $0.00. Current balance: $' + (Math.abs(total) / 100).toFixed(2));
+        return;
+      }
+      game.results = newResults;
+      saveState();
+      closeEditGame();
+      renderGames();
+      showToast('Game updated');
+    }
+
+    // ========== SETTLEMENT HISTORY ==========
+    function renderSettlementHistory() {
+      const section = document.getElementById('settlementHistory');
+      const log = document.getElementById('historyLog');
+      if (!section || !log) return;
+
+      const credits = state.credits || [];
+      if (!credits.length) {
+        section.style.display = 'none';
+        return;
+      }
+      section.style.display = '';
+
+      // Group credits by date (rounded to minute for batch detection)
+      const groups = [];
+      let currentGroup = null;
+      credits.forEach(c => {
+        const t = new Date(c.date).getTime();
+        // Credits within 5 seconds of each other are one batch
+        if (!currentGroup || Math.abs(t - currentGroup.time) > 5000) {
+          currentGroup = { time: t, date: c.date, items: [] };
+          groups.push(currentGroup);
+        }
+        currentGroup.items.push(c);
+      });
+
+      log.innerHTML = groups.slice().reverse().map(g => {
+        const dateStr = new Date(g.date).toLocaleString();
+        const total = g.items.reduce((s, c) => s + c.amount, 0);
+        return '<div class="history-entry">' +
+          '<div class="history-header"><span>' + dateStr + '</span><span>' + g.items.length + ' payment' + (g.items.length !== 1 ? 's' : '') + ' — ' + formatMoney(total) + ' total</span></div>' +
+          '<div class="history-items">' +
+          g.items.map(c =>
+            '<div class="history-item"><span class="from">' + c.from + '</span><span style="color:var(--text2);">\u2192</span><span class="to">' + c.to + '</span><span class="amt">' + formatMoney(c.amount) + '</span></div>'
+          ).join('') +
+          '</div></div>';
+      }).join('');
+    }
+
+    // ========== PAYMENT ACTIVITY LOG ==========
+    function getEventTypeName(type) {
+      const names = {
+        'mark_paid': 'Marked Paid',
+        'mark_unpaid': 'Marked Unpaid',
+        'settle_marked': 'Batch Settle',
+        'settle_all': 'Settle All',
+        'adjustment_add': 'Adjustment Added',
+        'adjustment_delete': 'Adjustment Removed',
+      };
+      return names[type] || type;
+    }
+
+    function formatEventDetail(evt) {
+      const d = evt.details || {};
+      switch (evt.type) {
+        case 'mark_paid':
+          return '<span class="player-name">' + d.from + '</span> &rarr; <span class="player-name">' + d.to + '</span>: <span class="amount positive">' + formatMoney(d.amount) + '</span>';
+        case 'mark_unpaid':
+          return '<span class="player-name">' + d.from + '</span> &rarr; <span class="player-name">' + d.to + '</span>: <span class="amount">' + formatMoney(d.amount) + '</span> <span style="color:var(--red);">(reverted)</span>';
+        case 'settle_marked':
+        case 'settle_all':
+          return d.count + ' payment' + (d.count !== 1 ? 's' : '') + ' settled — <span class="amount positive">' + formatMoney((d.payments || []).reduce(function(s,p){return s+p.amount;},0)) + '</span> total';
+        case 'adjustment_add':
+          return '<span class="player-name">' + d.player + '</span>: <span class="amount ' + (d.amount > 0 ? 'positive' : 'negative') + '">' + (d.amount > 0 ? '+' : '-') + formatMoney(Math.abs(d.amount)) + '</span>' + (d.reason ? ' — ' + d.reason : '');
+        case 'adjustment_delete':
+          return '<span class="player-name">' + d.player + '</span>: adjustment removed' + (d.reason ? ' (' + d.reason + ')' : '');
+        default:
+          return JSON.stringify(d);
+      }
+    }
+
+    function getEventPlayers(evt) {
+      const d = evt.details || {};
+      const players = new Set();
+      if (d.from) players.add(d.from);
+      if (d.to) players.add(d.to);
+      if (d.player) players.add(d.player);
+      if (d.payments) d.payments.forEach(function(p) { players.add(p.from); players.add(p.to); });
+      return players;
+    }
+
+    function renderPaymentActivityLog() {
+      const section = document.getElementById('paymentActivityLog');
+      const entries = document.getElementById('palEntries');
+      const empty = document.getElementById('palEmpty');
+      if (!section || !entries) return;
+
+      const history = state.paymentHistory || [];
+      if (!history.length) {
+        section.style.display = '';
+        entries.style.display = 'none';
+        empty.style.display = '';
+        return;
+      }
+
+      section.style.display = '';
+      entries.style.display = '';
+      empty.style.display = 'none';
+
+      // Populate player filter
+      const playerSelect = document.getElementById('palFilterPlayer');
+      const currentPlayer = playerSelect.value;
+      const allPlayers = new Set();
+      history.forEach(function(evt) { getEventPlayers(evt).forEach(function(p) { allPlayers.add(p); }); });
+      playerSelect.innerHTML = '<option value="all">All players</option>' +
+        Array.from(allPlayers).sort().map(function(p) {
+          return '<option value="' + p + '"' + (p === currentPlayer ? ' selected' : '') + '>' + p + '</option>';
+        }).join('');
+
+      // Apply filters
+      const typeFilter = document.getElementById('palFilterType').value;
+      const playerFilter = playerSelect.value;
+
+      let filtered = history.slice();
+      if (typeFilter !== 'all') {
+        filtered = filtered.filter(function(evt) { return evt.type === typeFilter; });
+      }
+      if (playerFilter !== 'all') {
+        filtered = filtered.filter(function(evt) { return getEventPlayers(evt).has(playerFilter); });
+      }
+
+      if (!filtered.length) {
+        entries.innerHTML = '<p style="color:var(--text2);text-align:center;padding:16px;font-size:0.82rem;">No matching events.</p>';
+        return;
+      }
+
+      entries.innerHTML = filtered.slice().reverse().map(function(evt) {
+        const dateStr = new Date(evt.date).toLocaleString();
+        let subItems = '';
+        if ((evt.type === 'settle_marked' || evt.type === 'settle_all') && evt.details && evt.details.payments) {
+          subItems = '<div class="pal-sub-items">' +
+            evt.details.payments.map(function(p) {
+              return '<div class="pal-sub-item"><span class="player-name">' + p.from + '</span> &rarr; <span class="player-name">' + p.to + '</span>: ' + formatMoney(p.amount) + '</div>';
+            }).join('') +
+            '</div>';
+        }
+        return '<div class="pal-entry type-' + evt.type + '">' +
+          '<div class="pal-header">' +
+            '<span class="pal-type-badge ' + evt.type + '">' + getEventTypeName(evt.type) + '</span>' +
+            '<span class="pal-date">' + dateStr + '</span>' +
+          '</div>' +
+          '<div class="pal-detail">' + formatEventDetail(evt) + '</div>' +
+          subItems +
+          '</div>';
+      }).join('');
+    }
+
+    function exportPaymentHistory() {
+      const history = state.paymentHistory || [];
+      if (!history.length) { showToast('No history to export'); return; }
+      const lines = ['Date,Type,Detail'];
+      history.forEach(function(evt) {
+        const d = evt.details || {};
+        let detail = '';
+        if (evt.type === 'mark_paid' || evt.type === 'mark_unpaid') {
+          detail = d.from + ' -> ' + d.to + ': $' + (d.amount / 100).toFixed(2);
+        } else if (evt.type === 'settle_marked' || evt.type === 'settle_all') {
+          detail = d.count + ' payments totaling $' + ((d.payments || []).reduce(function(s,p){return s+p.amount;},0) / 100).toFixed(2);
+        } else if (evt.type === 'adjustment_add' || evt.type === 'adjustment_delete') {
+          detail = d.player + ': ' + (d.amount > 0 ? '+' : '-') + '$' + (Math.abs(d.amount) / 100).toFixed(2) + (d.reason ? ' (' + d.reason + ')' : '');
+        }
+        lines.push('"' + new Date(evt.date).toLocaleString() + '","' + getEventTypeName(evt.type) + '","' + detail.replace(/"/g, '""') + '"');
+      });
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'payment-history-' + new Date().toISOString().split('T')[0] + '.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      showToast('History exported');
+    }
+
+    // ========== COPY PAYMENTS ==========
+    function copyPaymentSummary() {
+      const balances = calcNetBalances();
+      const { payments } = minimumPayments(balances);
+      if (!payments.length) { showToast('No payments to copy'); return; }
+      const lines = payments.map(p => {
+        const dollars = (p.amount / 100).toFixed(2);
+        return p.from + ' \u2192 ' + p.to + ': $' + dollars;
+      });
+      const text = 'Settlement Payments (' + new Date().toLocaleDateString() + ')\n' +
+        lines.join('\n') + '\n\n' + payments.length + ' total payments';
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('Copied to clipboard');
+      }).catch(() => {
+        // Fallback
+        const ta = document.createElement('textarea');
+        ta.value = text; document.body.appendChild(ta);
+        ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast('Copied to clipboard');
+      });
+    }
+
+    // ========== TOAST ==========
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2500);
+    }
+
     // ========== HELPERS ==========
     function formatMoney(val, showSign) {
       const dollars = val / 100;
@@ -2087,7 +2718,7 @@
       const data = JSON.stringify({
         players: state.players, games: state.games, credits: state.credits,
         settledPayments: state.settledPayments, nickMemory: state.nickMemory,
-        manualAdjustments: state.manualAdjustments,
+        manualAdjustments: state.manualAdjustments, paymentHistory: state.paymentHistory,
       }, null, 2);
       const blob = new Blob([data], { type: 'application/json' });
       const a = document.createElement('a');
@@ -2108,6 +2739,7 @@
           state.settledPayments = data.settledPayments || {};
           state.nickMemory = data.nickMemory || {};
           state.manualAdjustments = data.manualAdjustments || [];
+          state.paymentHistory = data.paymentHistory || [];
           saveState();
           refreshCurrentTab();
           alert('Data imported!');
@@ -2125,6 +2757,7 @@
       state.settledPayments = {};
       state.nickMemory = {};
       state.manualAdjustments = [];
+      state.paymentHistory = [];
       saveState();
       refreshCurrentTab();
       renderPlayerList();
