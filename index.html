@@ -11,6 +11,7 @@
   <!-- Firebase SDK (compat for simple inline usage) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <script src="poker-analytics.js"></script>
   <style>
     :root {
       --bg: #0f1117;
@@ -810,6 +811,250 @@
     .history-item .to { color: var(--green); font-weight: 600; }
     .history-item .amt { color: var(--gold); margin-left: auto; font-weight: 600; }
 
+    /* ===== ANALYTICS TAB ===== */
+    .analytics-controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .analytics-controls select {
+      min-width: 150px;
+    }
+
+    .analytics-controls .label {
+      font-size: 0.8rem;
+      color: var(--text2);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .player-select-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+
+    .player-select-btn {
+      padding: 8px 12px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 600;
+      transition: all 0.2s;
+      text-align: center;
+    }
+
+    .player-select-btn:hover { border-color: var(--accent); }
+    .player-select-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .stat-tile {
+      background: var(--surface2);
+      border-radius: var(--radius);
+      padding: 14px;
+      text-align: center;
+      border: 1px solid var(--border);
+    }
+
+    .stat-tile .stat-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--accent2);
+    }
+
+    .stat-tile .stat-label {
+      font-size: 0.72rem;
+      color: var(--text2);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 4px;
+    }
+
+    .stat-tile .stat-sublabel {
+      font-size: 0.68rem;
+      color: var(--text2);
+      margin-top: 2px;
+    }
+
+    .stat-section-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 10px;
+      margin-top: 20px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .range-grid {
+      display: grid;
+      grid-template-columns: repeat(13, 1fr);
+      gap: 2px;
+      margin-bottom: 16px;
+      max-width: 520px;
+    }
+
+    .range-cell {
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.6rem;
+      font-weight: 600;
+      border-radius: 3px;
+      background: var(--surface2);
+      color: var(--text2);
+      position: relative;
+      min-width: 0;
+    }
+
+    .range-cell.suited { background: #1a3a2a; color: var(--green); }
+    .range-cell.offsuit { background: #2a1a1a; color: var(--red); }
+    .range-cell.pair { background: #1a1a3a; color: var(--accent2); }
+    .range-cell.has-3bet { box-shadow: inset 0 0 0 2px var(--gold); }
+    .range-cell.has-4bet { box-shadow: inset 0 0 0 2px #fd79a8; }
+    .range-cell.has-both { box-shadow: inset 0 0 0 2px var(--gold), inset 0 0 0 4px #fd79a8; }
+
+    .range-cell .count-badge {
+      position: absolute;
+      top: 1px;
+      right: 1px;
+      font-size: 0.5rem;
+      background: rgba(0,0,0,0.5);
+      border-radius: 3px;
+      padding: 0 2px;
+      color: #fff;
+    }
+
+    .range-legend {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .range-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.75rem;
+      color: var(--text2);
+    }
+
+    .range-legend-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+    }
+
+    .range-history-list {
+      max-height: 250px;
+      overflow-y: auto;
+    }
+
+    .range-entry {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 10px;
+      background: var(--surface2);
+      border-radius: 6px;
+      margin-bottom: 3px;
+      font-size: 0.8rem;
+    }
+
+    .range-entry .cards { font-weight: 700; color: var(--gold); min-width: 70px; }
+    .range-entry .bet-type { font-weight: 600; }
+    .range-entry .bet-type.three-bet { color: var(--gold); }
+    .range-entry .bet-type.four-bet { color: #fd79a8; }
+    .range-entry .meta { color: var(--text2); font-size: 0.72rem; }
+
+    .table-size-tabs {
+      display: flex;
+      gap: 3px;
+      margin-bottom: 12px;
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 3px;
+      width: fit-content;
+    }
+
+    .ts-tab {
+      padding: 5px 14px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: var(--text2);
+      cursor: pointer;
+      font-size: 0.78rem;
+      font-weight: 600;
+      transition: all 0.15s;
+    }
+
+    .ts-tab.active { background: var(--accent); color: #fff; }
+    .ts-tab:hover:not(.active) { color: var(--text); }
+
+    .no-data-msg {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text2);
+      font-size: 0.9rem;
+    }
+
+    .no-data-msg .icon { font-size: 2rem; margin-bottom: 8px; }
+
+    .analytics-player-count {
+      font-size: 0.78rem;
+      color: var(--text2);
+      margin-bottom: 8px;
+    }
+
+    .shown-hands-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+      gap: 4px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .shown-hand-chip {
+      padding: 4px 8px;
+      background: var(--surface2);
+      border-radius: 6px;
+      font-size: 0.75rem;
+      text-align: center;
+      font-weight: 600;
+      color: var(--gold);
+      border: 1px solid var(--border);
+    }
+
+    .upload-log-note {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background: rgba(108,92,231,0.1);
+      border: 1px solid rgba(108,92,231,0.3);
+      border-radius: var(--radius);
+      margin-top: 12px;
+      font-size: 0.82rem;
+      color: var(--accent2);
+    }
+
     /* Payment Activity Log */
     .pal-controls {
       display: flex;
@@ -977,6 +1222,7 @@
       <button class="tab active" data-tab="dashboard" onclick="switchTab('dashboard', event)">Dashboard</button>
       <button class="tab" data-tab="games" onclick="switchTab('games', event)">Game History</button>
       <button class="tab" data-tab="payments" onclick="switchTab('payments', event)">Payments</button>
+      <button class="tab" data-tab="analytics" onclick="switchTab('analytics', event)">Analytics</button>
       <button class="tab" data-tab="upload" onclick="switchTab('upload', event)" id="uploadTab">Upload Game</button>
     </div>
 
@@ -1092,6 +1338,65 @@
           <div id="palEntries" style="max-height:400px;overflow-y:auto;"></div>
           <div id="palEmpty" style="display:none;color:var(--text2);text-align:center;padding:24px;font-size:0.85rem;">No payment activity recorded yet.</div>
         </div>
+      </div>
+    </div>
+
+    <!-- ANALYTICS -->
+    <div id="tab-analytics" class="hidden">
+      <div class="card">
+        <h2>Player Analytics</h2>
+        <div id="analyticsNoData" class="no-data-msg">
+          <div class="icon">&#128202;</div>
+          <p>No hand log data yet.</p>
+          <p style="font-size:0.8rem;margin-top:6px;">Upload a PokerNow hand-log CSV (not just the ledger) via the Upload tab to populate analytics.</p>
+        </div>
+        <div id="analyticsContent" style="display:none;">
+          <p class="analytics-player-count" id="analyticsPlayerCount"></p>
+          <div class="player-select-grid" id="analyticsPlayerGrid"></div>
+
+          <div id="analyticsPlayerView" style="display:none;">
+            <div class="table-size-tabs">
+              <button class="ts-tab active" data-ts="all" onclick="setAnalyticsTableSize('all', this)">All Tables</button>
+              <button class="ts-tab" data-ts="short" onclick="setAnalyticsTableSize('short', this)">Short (2-7)</button>
+              <button class="ts-tab" data-ts="full" onclick="setAnalyticsTableSize('full', this)">Full (8+)</button>
+            </div>
+
+            <div class="stat-section-title">Core Stats</div>
+            <div class="stat-grid" id="analyticsCoreStats"></div>
+
+            <div class="stat-section-title">Preflop Tendencies</div>
+            <div class="stat-grid" id="analyticsPreflopStats"></div>
+
+            <div class="stat-section-title">Postflop Aggression</div>
+            <div class="stat-grid" id="analyticsPostflopStats"></div>
+
+            <div class="stat-section-title">3-Bet / 4-Bet Range (Shown Hands)</div>
+            <div class="range-legend">
+              <div class="range-legend-item"><div class="range-legend-swatch" style="background:#1a1a3a;"></div> Pair</div>
+              <div class="range-legend-item"><div class="range-legend-swatch" style="background:#1a3a2a;"></div> Suited</div>
+              <div class="range-legend-item"><div class="range-legend-swatch" style="background:#2a1a1a;"></div> Offsuit</div>
+              <div class="range-legend-item"><div class="range-legend-swatch" style="border:2px solid var(--gold);"></div> 3-Bet</div>
+              <div class="range-legend-item"><div class="range-legend-swatch" style="border:2px solid #fd79a8;"></div> 4-Bet</div>
+            </div>
+            <div class="range-grid" id="analyticsRangeGrid"></div>
+            <div class="range-history-list" id="analyticsRangeList"></div>
+
+            <div class="stat-section-title">All Shown Hands</div>
+            <div class="shown-hands-grid" id="analyticsShownHands"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hand Log Upload (separate from ledger) -->
+      <div class="card" id="handLogUploadCard">
+        <h2>Upload Hand Log CSV</h2>
+        <p style="font-size:0.82rem;color:var(--text2);margin-bottom:12px;">Upload a PokerNow <strong>hand log</strong> CSV (not the ledger) to analyze hand-level player statistics.</p>
+        <div class="upload-zone" id="handLogUploadZone" onclick="document.getElementById('handLogFileInput').click()">
+          <div class="icon">&#128203;</div>
+          <p>Drop a hand-log CSV here or click to browse</p>
+          <input type="file" id="handLogFileInput" accept=".csv" style="display:none" onchange="handleHandLogFile(this.files[0])">
+        </div>
+        <div id="handLogStatus" style="display:none;" class="upload-log-note"></div>
       </div>
     </div>
 
@@ -1328,6 +1633,7 @@
       nickMemory: {},
       manualAdjustments: [], // { player, amount (cents), reason, date } — manual balance tweaks
       paymentHistory: [],   // chronological log of all payment events for interpretability
+      playerAnalytics: {},  // { playerId: { name, full: {...}, short: {...}, rangeHistory, shownHands, processedHands } }
     };
 
     let currentTab = 'dashboard';
@@ -1348,6 +1654,7 @@
           state.nickMemory = data.nickMemory || {};
           state.manualAdjustments = data.manualAdjustments || [];
           state.paymentHistory = data.paymentHistory || [];
+          state.playerAnalytics = data.playerAnalytics || {};
         }
         firebaseReady = true;
         updateSyncBadge(true);
@@ -1375,6 +1682,7 @@
         nickMemory: state.nickMemory,
         manualAdjustments: state.manualAdjustments,
         paymentHistory: state.paymentHistory,
+        playerAnalytics: state.playerAnalytics,
       };
       // Save to Firebase
       dbRef('state').set(payload).catch((err) => {
@@ -1397,6 +1705,7 @@
           state.nickMemory = parsed.nickMemory || {};
           state.manualAdjustments = parsed.manualAdjustments || [];
           state.paymentHistory = parsed.paymentHistory || [];
+          state.playerAnalytics = parsed.playerAnalytics || {};
         }
       } catch (e) { }
     }
@@ -1416,6 +1725,7 @@
       if (currentTab === 'dashboard') renderDashboard();
       else if (currentTab === 'games') renderGames();
       else if (currentTab === 'payments') renderPayments();
+      else if (currentTab === 'analytics') renderAnalytics();
       if (state.isAdmin) {
         renderPlayerList();
         updateRakeDisplay();
@@ -1629,6 +1939,7 @@
       if (name === 'dashboard') renderDashboard();
       if (name === 'games') renderGames();
       if (name === 'payments') renderPayments();
+      if (name === 'analytics') renderAnalytics();
     }
 
     // ========== CSV PARSING ==========
@@ -2713,12 +3024,266 @@
       return str;
     }
 
+    // ========== ANALYTICS ==========
+    let analyticsSelectedPlayer = null;
+    let analyticsTableSize = 'all';
+
+    function handleHandLogFile(file) {
+      if (!file) return;
+      const statusEl = document.getElementById('handLogStatus');
+      statusEl.style.display = '';
+      statusEl.textContent = 'Parsing hand log...';
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          const rows = PokerAnalytics.parseCSVRows(e.target.result);
+          const hands = PokerAnalytics.parseHands(rows);
+          if (!hands.length) {
+            statusEl.textContent = 'No hands found in file. Make sure this is a PokerNow hand-log CSV (not a ledger).';
+            return;
+          }
+
+          // Compute stats, merging with existing
+          state.playerAnalytics = PokerAnalytics.computeAllStats(hands, state.playerAnalytics);
+          saveState();
+
+          const playerCount = Object.keys(state.playerAnalytics).length;
+          const newHands = hands.length;
+          statusEl.textContent = 'Processed ' + newHands + ' hands across ' + playerCount + ' players. Analytics updated!';
+          statusEl.style.borderColor = 'rgba(0,184,148,0.5)';
+          statusEl.style.background = 'rgba(0,184,148,0.1)';
+          statusEl.style.color = 'var(--green)';
+
+          renderAnalytics();
+        } catch (err) {
+          statusEl.textContent = 'Error parsing file: ' + err.message;
+          statusEl.style.borderColor = 'rgba(225,112,85,0.5)';
+          statusEl.style.color = 'var(--red)';
+          console.error(err);
+        }
+      };
+      reader.readAsText(file);
+      document.getElementById('handLogFileInput').value = '';
+    }
+
+    // Drag & drop for hand log
+    (function () {
+      const zone = document.getElementById('handLogUploadZone');
+      if (!zone) return;
+      zone.addEventListener('dragover', function (e) { e.preventDefault(); zone.classList.add('dragover'); });
+      zone.addEventListener('dragleave', function () { zone.classList.remove('dragover'); });
+      zone.addEventListener('drop', function (e) {
+        e.preventDefault(); zone.classList.remove('dragover');
+        if (e.dataTransfer.files.length) handleHandLogFile(e.dataTransfer.files[0]);
+      });
+    })();
+
+    function setAnalyticsTableSize(size, btn) {
+      analyticsTableSize = size;
+      document.querySelectorAll('.ts-tab').forEach(function (el) { el.classList.remove('active'); });
+      if (btn) btn.classList.add('active');
+      renderAnalyticsPlayerView();
+    }
+
+    function selectAnalyticsPlayer(pid) {
+      analyticsSelectedPlayer = pid;
+      document.querySelectorAll('.player-select-btn').forEach(function (el) {
+        el.classList.toggle('active', el.dataset.pid === pid);
+      });
+      document.getElementById('analyticsPlayerView').style.display = '';
+      renderAnalyticsPlayerView();
+    }
+
+    function renderAnalytics() {
+      const analytics = state.playerAnalytics || {};
+      const playerIds = Object.keys(analytics);
+      const noData = document.getElementById('analyticsNoData');
+      const content = document.getElementById('analyticsContent');
+
+      if (!playerIds.length) {
+        noData.style.display = '';
+        content.style.display = 'none';
+        return;
+      }
+
+      noData.style.display = 'none';
+      content.style.display = '';
+
+      // Count total hands
+      let totalHands = 0;
+      playerIds.forEach(function (pid) {
+        const ps = analytics[pid];
+        totalHands = Math.max(totalHands, (ps.processedHands || []).length);
+      });
+
+      document.getElementById('analyticsPlayerCount').textContent =
+        playerIds.length + ' player' + (playerIds.length !== 1 ? 's' : '') + ' tracked across ' + totalHands + ' hands';
+
+      // Player selection grid
+      const grid = document.getElementById('analyticsPlayerGrid');
+      grid.innerHTML = playerIds
+        .sort(function (a, b) {
+          const ah = analytics[a].full.handsPlayed + analytics[a].short.handsPlayed;
+          const bh = analytics[b].full.handsPlayed + analytics[b].short.handsPlayed;
+          return bh - ah;
+        })
+        .map(function (pid) {
+          const ps = analytics[pid];
+          const total = ps.full.handsPlayed + ps.short.handsPlayed;
+          const active = analyticsSelectedPlayer === pid ? ' active' : '';
+          return '<button class="player-select-btn' + active + '" data-pid="' + pid + '" onclick="selectAnalyticsPlayer(\'' + pid.replace(/'/g, "\\'") + '\')">' +
+            ps.name + '<br><span style="font-size:0.7rem;color:var(--text2);font-weight:400;">' + total + ' hands</span></button>';
+        }).join('');
+
+      if (analyticsSelectedPlayer && analytics[analyticsSelectedPlayer]) {
+        document.getElementById('analyticsPlayerView').style.display = '';
+        renderAnalyticsPlayerView();
+      } else {
+        document.getElementById('analyticsPlayerView').style.display = 'none';
+      }
+    }
+
+    function renderAnalyticsPlayerView() {
+      const ps = state.playerAnalytics[analyticsSelectedPlayer];
+      if (!ps) return;
+
+      const display = PokerAnalytics.computeDisplayStats(ps, analyticsTableSize);
+      if (!display) {
+        document.getElementById('analyticsCoreStats').innerHTML = '<p style="color:var(--text2);">No data for this table size.</p>';
+        document.getElementById('analyticsPreflopStats').innerHTML = '';
+        document.getElementById('analyticsPostflopStats').innerHTML = '';
+        return;
+      }
+
+      // Core stats
+      document.getElementById('analyticsCoreStats').innerHTML = statTilesHTML([
+        { value: display.handsPlayed, label: 'Hands', sublabel: '' },
+        { value: display.vpip + '%', label: 'VPIP', sublabel: 'Voluntarily Put $ In' },
+        { value: display.pfr + '%', label: 'PFR', sublabel: 'Pre-Flop Raise' },
+        { value: display.af, label: 'AF', sublabel: 'Aggression Factor' },
+        { value: display.afq + '%', label: 'AFq', sublabel: 'Aggression Freq' },
+        { value: display.wtsd + '%', label: 'WTSD', sublabel: 'Went to Showdown' },
+        { value: display.wmsd + '%', label: 'W$SD', sublabel: 'Won $ at Showdown' },
+      ]);
+
+      // Preflop
+      document.getElementById('analyticsPreflopStats').innerHTML = statTilesHTML([
+        { value: display.threeBet + '%', label: '3-Bet', sublabel: display._raw.threeBetHands + ' times' },
+        { value: display.fourBet + '%', label: '4-Bet', sublabel: display._raw.fourBetHands + ' times' },
+        { value: display.foldTo3bet + '%', label: 'Fold to 3-Bet', sublabel: display._raw.foldToThreeBet + '/' + display._raw.facedThreeBet },
+        { value: display.foldTo4bet + '%', label: 'Fold to 4-Bet', sublabel: display._raw.foldToFourBet + '/' + display._raw.facedFourBet },
+        { value: display.preflopFoldPct + '%', label: 'PF Fold%', sublabel: 'Preflop folds' },
+        { value: display.cbet + '%', label: 'C-Bet', sublabel: display._raw.cbetMade + '/' + display._raw.cbetOpportunities },
+        { value: display.allInPct + '%', label: 'All-In%', sublabel: display._raw.allInHands + ' times' },
+      ]);
+
+      // Postflop
+      document.getElementById('analyticsPostflopStats').innerHTML = statTilesHTML([
+        { value: display.flopAF, label: 'Flop AF', sublabel: display._raw.flopAggression + ' agg / ' + display._raw.flopPassive + ' pass' },
+        { value: display.turnAF, label: 'Turn AF', sublabel: display._raw.turnAggression + ' agg / ' + display._raw.turnPassive + ' pass' },
+        { value: display.riverAF, label: 'River AF', sublabel: display._raw.riverAggression + ' agg / ' + display._raw.riverPassive + ' pass' },
+      ]);
+
+      // 3bet/4bet range grid
+      renderRangeGrid(ps);
+
+      // Shown hands
+      renderShownHands(ps);
+    }
+
+    function statTilesHTML(tiles) {
+      return tiles.map(function (t) {
+        return '<div class="stat-tile"><div class="stat-value">' + t.value + '</div><div class="stat-label">' + t.label + '</div>' +
+          (t.sublabel ? '<div class="stat-sublabel">' + t.sublabel + '</div>' : '') + '</div>';
+      }).join('');
+    }
+
+    function renderRangeGrid(ps) {
+      const gridEl = document.getElementById('analyticsRangeGrid');
+      const listEl = document.getElementById('analyticsRangeList');
+      const ranks = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
+
+      // Build lookup from range history
+      const rangeLookup = {}; // "AKs" -> { threebet: count, fourbet: count, entries: [] }
+      (ps.rangeHistory || []).forEach(function (entry) {
+        const cat = PokerAnalytics.categorizeHand(entry.cards);
+        if (!cat) return;
+        if (!rangeLookup[cat.label]) rangeLookup[cat.label] = { threebet: 0, fourbet: 0, entries: [] };
+        const rl = rangeLookup[cat.label];
+        if (entry.is3bet) rl.threebet++;
+        if (entry.is4bet) rl.fourbet++;
+        rl.entries.push(entry);
+      });
+
+      // Build 13x13 grid
+      let html = '';
+      for (let row = 0; row < 13; row++) {
+        for (let col = 0; col < 13; col++) {
+          let label, cssClass;
+          if (row === col) {
+            label = ranks[row] + ranks[col];
+            cssClass = 'pair';
+          } else if (row < col) {
+            label = ranks[row] + ranks[col] + 's';
+            cssClass = 'suited';
+          } else {
+            label = ranks[col] + ranks[row] + 'o';
+            cssClass = 'offsuit';
+          }
+
+          const rl = rangeLookup[label];
+          let extraClass = '';
+          let badge = '';
+          if (rl) {
+            if (rl.threebet > 0 && rl.fourbet > 0) extraClass = ' has-both';
+            else if (rl.fourbet > 0) extraClass = ' has-4bet';
+            else if (rl.threebet > 0) extraClass = ' has-3bet';
+            badge = '<span class="count-badge">' + (rl.threebet + rl.fourbet) + '</span>';
+          }
+
+          html += '<div class="range-cell ' + cssClass + extraClass + '" title="' + label + (rl ? ' (' + rl.threebet + ' 3bet, ' + rl.fourbet + ' 4bet)' : '') + '">' + label + badge + '</div>';
+        }
+      }
+      gridEl.innerHTML = html;
+
+      // Range history list
+      const allEntries = (ps.rangeHistory || []).slice().reverse();
+      if (!allEntries.length) {
+        listEl.innerHTML = '<p style="color:var(--text2);font-size:0.82rem;">No 3-bet or 4-bet hands shown yet.</p>';
+        return;
+      }
+      listEl.innerHTML = allEntries.map(function (entry) {
+        const betType = entry.is4bet ? '4-Bet' : '3-Bet';
+        const betClass = entry.is4bet ? 'four-bet' : 'three-bet';
+        const dateStr = new Date(entry.date).toLocaleDateString();
+        return '<div class="range-entry">' +
+          '<span class="cards">' + entry.cards + '</span>' +
+          '<span class="bet-type ' + betClass + '">' + betType + '</span>' +
+          '<span class="meta">Hand #' + entry.handNumber + ' &middot; ' + entry.numPlayers + 'p &middot; ' + dateStr + '</span>' +
+          '</div>';
+      }).join('');
+    }
+
+    function renderShownHands(ps) {
+      const el = document.getElementById('analyticsShownHands');
+      const shown = (ps.shownHands || []).slice().reverse();
+      if (!shown.length) {
+        el.innerHTML = '<p style="color:var(--text2);font-size:0.82rem;">No hands revealed at showdown yet.</p>';
+        return;
+      }
+      el.innerHTML = shown.map(function (sh) {
+        return '<div class="shown-hand-chip" title="Hand #' + sh.handNumber + ' (' + sh.numPlayers + 'p)">' + sh.cards + '</div>';
+      }).join('');
+    }
+
     // ========== DATA MANAGEMENT ==========
     function exportData() {
       const data = JSON.stringify({
         players: state.players, games: state.games, credits: state.credits,
         settledPayments: state.settledPayments, nickMemory: state.nickMemory,
         manualAdjustments: state.manualAdjustments, paymentHistory: state.paymentHistory,
+        playerAnalytics: state.playerAnalytics,
       }, null, 2);
       const blob = new Blob([data], { type: 'application/json' });
       const a = document.createElement('a');
@@ -2740,6 +3305,7 @@
           state.nickMemory = data.nickMemory || {};
           state.manualAdjustments = data.manualAdjustments || [];
           state.paymentHistory = data.paymentHistory || [];
+          state.playerAnalytics = data.playerAnalytics || {};
           saveState();
           refreshCurrentTab();
           alert('Data imported!');
@@ -2758,6 +3324,7 @@
       state.nickMemory = {};
       state.manualAdjustments = [];
       state.paymentHistory = [];
+      state.playerAnalytics = {};
       saveState();
       refreshCurrentTab();
       renderPlayerList();
