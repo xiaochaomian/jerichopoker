@@ -1055,6 +1055,35 @@
       color: var(--accent2);
     }
 
+    /* Upload Manager */
+    .upload-entry {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: var(--surface2);
+      border-radius: var(--radius);
+      margin-bottom: 4px;
+      border: 1px solid var(--border);
+    }
+
+    .upload-entry-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .upload-entry-name {
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: var(--text);
+    }
+
+    .upload-entry-meta {
+      font-size: 0.75rem;
+      color: var(--text2);
+    }
+
     /* Payment Activity Log */
     .pal-controls {
       display: flex;
@@ -1398,6 +1427,24 @@
         </div>
         <div id="handLogStatus" style="display:none;" class="upload-log-note"></div>
       </div>
+
+      <!-- Uploaded CSVs Manager -->
+      <div class="card" id="uploadManagerSection" style="display:none;">
+        <h2>Uploaded Hand Logs</h2>
+        <p style="font-size:0.82rem;color:var(--text2);margin-bottom:12px;">Remove a CSV if it was uploaded by mistake. Analytics will be recalculated from the remaining uploads.</p>
+        <div id="uploadManagerList"></div>
+      </div>
+
+      <!-- Hand Log Mapping (hidden until CSV is parsed) -->
+      <div class="card hidden" id="handLogMappingCard">
+        <h2>Map Nicknames to Players</h2>
+        <p style="font-size:0.83rem;color:var(--text2);margin-bottom:16px;">Assign each PokerNow nickname to a real player. Only mapped players will be included in analytics.</p>
+        <div id="handLogMappingList"></div>
+        <div style="margin-top:20px;display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn btn-secondary" onclick="cancelHandLogMapping()">Cancel</button>
+          <button class="btn btn-primary" onclick="confirmHandLogMapping()">Confirm &amp; Process</button>
+        </div>
+      </div>
     </div>
 
     <!-- UPLOAD -->
@@ -1634,6 +1681,7 @@
       manualAdjustments: [], // { player, amount (cents), reason, date } — manual balance tweaks
       paymentHistory: [],   // chronological log of all payment events for interpretability
       playerAnalytics: {},  // { playerId: { name, full: {...}, short: {...}, rangeHistory, shownHands, processedHands } }
+      handLogUploads: [],   // { id, filename, date, hands (remapped), mapping } — for recompute on removal
     };
 
     let currentTab = 'dashboard';
@@ -1655,6 +1703,7 @@
           state.manualAdjustments = data.manualAdjustments || [];
           state.paymentHistory = data.paymentHistory || [];
           state.playerAnalytics = data.playerAnalytics || {};
+          state.handLogUploads = data.handLogUploads || [];
         }
         firebaseReady = true;
         updateSyncBadge(true);
@@ -1683,6 +1732,7 @@
         manualAdjustments: state.manualAdjustments,
         paymentHistory: state.paymentHistory,
         playerAnalytics: state.playerAnalytics,
+        handLogUploads: state.handLogUploads,
       };
       // Save to Firebase
       dbRef('state').set(payload).catch((err) => {
@@ -1706,6 +1756,7 @@
           state.manualAdjustments = parsed.manualAdjustments || [];
           state.paymentHistory = parsed.paymentHistory || [];
           state.playerAnalytics = parsed.playerAnalytics || {};
+          state.handLogUploads = parsed.handLogUploads || [];
         }
       } catch (e) { }
     }
@@ -3035,11 +3086,18 @@
     let analyticsSelectedPlayer = null;
     let analyticsTableSize = 'all';
 
+    let pendingHandLogHands = null; // parsed hands waiting for mapping
+    let pendingHandLogFilename = '';
+
     function handleHandLogFile(file) {
       if (!file) return;
       if (!state.isOwner) { alert('Only the owner can upload hand logs.'); return; }
+      pendingHandLogFilename = file.name || 'hand-log.csv';
       const statusEl = document.getElementById('handLogStatus');
       statusEl.style.display = '';
+      statusEl.style.borderColor = '';
+      statusEl.style.background = '';
+      statusEl.style.color = '';
       statusEl.textContent = 'Parsing hand log...';
 
       const reader = new FileReader();
@@ -3049,21 +3107,14 @@
           const hands = PokerAnalytics.parseHands(rows);
           if (!hands.length) {
             statusEl.textContent = 'No hands found in file. Make sure this is a PokerNow hand-log CSV (not a ledger).';
+            statusEl.style.borderColor = 'rgba(225,112,85,0.5)';
+            statusEl.style.color = 'var(--red)';
             return;
           }
 
-          // Compute stats, merging with existing
-          state.playerAnalytics = PokerAnalytics.computeAllStats(hands, state.playerAnalytics);
-          saveState();
-
-          const playerCount = Object.keys(state.playerAnalytics).length;
-          const newHands = hands.length;
-          statusEl.textContent = 'Processed ' + newHands + ' hands across ' + playerCount + ' players. Analytics updated!';
-          statusEl.style.borderColor = 'rgba(0,184,148,0.5)';
-          statusEl.style.background = 'rgba(0,184,148,0.1)';
-          statusEl.style.color = 'var(--green)';
-
-          renderAnalytics();
+          statusEl.textContent = 'Parsed ' + hands.length + ' hands. Please map nicknames to players below.';
+          pendingHandLogHands = hands;
+          showHandLogMappingStep(hands);
         } catch (err) {
           statusEl.textContent = 'Error parsing file: ' + err.message;
           statusEl.style.borderColor = 'rgba(225,112,85,0.5)';
@@ -3073,6 +3124,175 @@
       };
       reader.readAsText(file);
       document.getElementById('handLogFileInput').value = '';
+    }
+
+    function showHandLogMappingStep(hands) {
+      // Collect unique players: { "name @ id" -> { name, id, handCount } }
+      const playerMap = {};
+      hands.forEach(function (h) {
+        h.players.forEach(function (p) {
+          const key = p.name + ' @ ' + p.id;
+          if (!playerMap[key]) playerMap[key] = { name: p.name, id: p.id, handCount: 0 };
+          playerMap[key].handCount++;
+        });
+      });
+
+      const list = document.getElementById('handLogMappingList');
+      list.innerHTML = '';
+
+      // Sort by hand count descending
+      const entries = Object.values(playerMap).sort(function (a, b) { return b.handCount - a.handCount; });
+
+      entries.forEach(function (entry) {
+        const row = document.createElement('div');
+        row.className = 'mapping-row';
+
+        const nickLabel = document.createElement('span');
+        nickLabel.className = 'mapping-nickname';
+        nickLabel.textContent = entry.name;
+
+        const arrow = document.createElement('span');
+        arrow.className = 'mapping-arrow';
+        arrow.textContent = '\u2192';
+
+        const sel = document.createElement('select');
+        sel.dataset.pokerId = entry.id;
+        sel.dataset.pokerName = entry.name;
+        sel.innerHTML = '<option value="">-- Skip Player --</option>';
+        state.players.forEach(function (p) {
+          const opt = document.createElement('option');
+          opt.value = p;
+          opt.textContent = p;
+          sel.appendChild(opt);
+        });
+        // Auto-suggest from nickMemory / fuzzy match
+        const suggested = suggestPlayer(entry.name);
+        if (suggested) sel.value = suggested;
+
+        const countLabel = document.createElement('span');
+        countLabel.style.marginLeft = 'auto';
+        countLabel.style.fontSize = '0.78rem';
+        countLabel.style.color = 'var(--text2)';
+        countLabel.textContent = entry.handCount + ' hands';
+
+        row.appendChild(nickLabel);
+        row.appendChild(arrow);
+        row.appendChild(sel);
+        row.appendChild(countLabel);
+        list.appendChild(row);
+      });
+
+      document.getElementById('handLogUploadCard').classList.add('hidden');
+      document.getElementById('handLogMappingCard').classList.remove('hidden');
+    }
+
+    function cancelHandLogMapping() {
+      pendingHandLogHands = null;
+      document.getElementById('handLogUploadCard').classList.remove('hidden');
+      document.getElementById('handLogMappingCard').classList.add('hidden');
+      const statusEl = document.getElementById('handLogStatus');
+      statusEl.style.display = 'none';
+    }
+
+    function confirmHandLogMapping() {
+      if (!pendingHandLogHands) return;
+
+      // Build mapping: pokerId -> realPlayerName
+      const idToPlayer = {};
+      const selects = document.querySelectorAll('#handLogMappingList select');
+      let mappedCount = 0;
+      selects.forEach(function (sel) {
+        const player = sel.value;
+        const pokerId = sel.dataset.pokerId;
+        const pokerName = sel.dataset.pokerName;
+        if (player) {
+          idToPlayer[pokerId] = player;
+          mappedCount++;
+          // Remember this mapping for future uploads
+          state.nickMemory[pokerName.toLowerCase().trim()] = player;
+        }
+      });
+
+      if (mappedCount === 0) {
+        alert('Please assign at least one nickname to a player.');
+        return;
+      }
+
+      // Remap all hands: replace player IDs/names with the real player name
+      const remappedHands = PokerAnalytics.remapPlayerNames(pendingHandLogHands, idToPlayer);
+
+      // Store this upload for later removal/recompute
+      if (!state.handLogUploads) state.handLogUploads = [];
+      state.handLogUploads.push({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        filename: pendingHandLogFilename,
+        date: new Date().toISOString(),
+        handCount: remappedHands.length,
+        hands: remappedHands,
+      });
+
+      // Recompute all stats from scratch using all uploads
+      recomputeAnalyticsFromUploads();
+
+      const playerCount = Object.keys(state.playerAnalytics).length;
+      const statusEl = document.getElementById('handLogStatus');
+      statusEl.style.display = '';
+      statusEl.textContent = 'Processed ' + remappedHands.length + ' hands across ' + playerCount + ' players. Analytics updated!';
+      statusEl.style.borderColor = 'rgba(0,184,148,0.5)';
+      statusEl.style.background = 'rgba(0,184,148,0.1)';
+      statusEl.style.color = 'var(--green)';
+
+      pendingHandLogHands = null;
+      pendingHandLogFilename = '';
+      document.getElementById('handLogUploadCard').classList.remove('hidden');
+      document.getElementById('handLogMappingCard').classList.add('hidden');
+      renderAnalytics();
+    }
+
+    function recomputeAnalyticsFromUploads() {
+      // Rebuild stats from scratch using all stored uploads
+      let stats = {};
+      (state.handLogUploads || []).forEach(function (upload) {
+        stats = PokerAnalytics.computeAllStats(upload.hands, stats);
+      });
+      state.playerAnalytics = stats;
+      saveState();
+    }
+
+    function removeHandLogUpload(uploadId) {
+      if (!state.isOwner) return;
+      const upload = (state.handLogUploads || []).find(function (u) { return u.id === uploadId; });
+      if (!upload) return;
+      if (!confirm('Remove "' + upload.filename + '" (' + upload.handCount + ' hands)? Analytics will be recalculated from remaining uploads.')) return;
+
+      state.handLogUploads = state.handLogUploads.filter(function (u) { return u.id !== uploadId; });
+      recomputeAnalyticsFromUploads();
+      renderAnalytics();
+      showToast('Upload removed — analytics recalculated');
+    }
+
+    function renderUploadManager() {
+      const el = document.getElementById('uploadManagerList');
+      if (!el) return;
+      const uploads = state.handLogUploads || [];
+      const section = document.getElementById('uploadManagerSection');
+
+      if (!state.isOwner || !uploads.length) {
+        if (section) section.style.display = 'none';
+        return;
+      }
+      if (section) section.style.display = '';
+
+      el.innerHTML = uploads.map(function (u) {
+        const dateStr = new Date(u.date).toLocaleDateString();
+        return '<div class="upload-entry">' +
+          '<div class="upload-entry-info">' +
+            '<span class="upload-entry-name">' + u.filename + '</span>' +
+            '<span class="upload-entry-meta">' + u.handCount + ' hands &middot; ' + dateStr + '</span>' +
+          '</div>' +
+          '<button class="btn btn-danger btn-small" onclick="removeHandLogUpload(\'' + u.id + '\')">Remove</button>' +
+          '</div>';
+      }).join('');
     }
 
     // Drag & drop for hand log
@@ -3104,6 +3324,8 @@
     }
 
     function renderAnalytics() {
+      renderUploadManager();
+
       const analytics = state.playerAnalytics || {};
       const playerIds = Object.keys(analytics);
       const noData = document.getElementById('analyticsNoData');
@@ -3291,7 +3513,7 @@
         players: state.players, games: state.games, credits: state.credits,
         settledPayments: state.settledPayments, nickMemory: state.nickMemory,
         manualAdjustments: state.manualAdjustments, paymentHistory: state.paymentHistory,
-        playerAnalytics: state.playerAnalytics,
+        playerAnalytics: state.playerAnalytics, handLogUploads: state.handLogUploads,
       }, null, 2);
       const blob = new Blob([data], { type: 'application/json' });
       const a = document.createElement('a');
@@ -3314,6 +3536,7 @@
           state.manualAdjustments = data.manualAdjustments || [];
           state.paymentHistory = data.paymentHistory || [];
           state.playerAnalytics = data.playerAnalytics || {};
+          state.handLogUploads = data.handLogUploads || [];
           saveState();
           refreshCurrentTab();
           alert('Data imported!');
@@ -3333,6 +3556,7 @@
       state.manualAdjustments = [];
       state.paymentHistory = [];
       state.playerAnalytics = {};
+      state.handLogUploads = [];
       saveState();
       refreshCurrentTab();
       renderPlayerList();

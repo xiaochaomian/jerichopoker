@@ -709,6 +709,53 @@
     return { label, high, low, suited, pair };
   }
 
+  // ── Remap player names in parsed hands ──────────────────────────────
+  // idToPlayer: { pokerNowId -> realPlayerName }
+  // Hands with unmapped players: those players are excluded from the hand's
+  // player list (actions remain so preflop logic still works, but stats
+  // won't be recorded for skipped players).
+  function remapPlayerNames(hands, idToPlayer) {
+    return hands.map(hand => {
+      const h = JSON.parse(JSON.stringify(hand)); // deep clone
+
+      // Remap players array — only keep mapped players
+      h.players = h.players
+        .filter(p => idToPlayer[p.id])
+        .map(p => ({
+          ...p,
+          name: idToPlayer[p.id],
+          id: idToPlayer[p.id],   // use real name as ID so stats merge by person
+        }));
+
+      h.numPlayers = hand.numPlayers; // keep original table size for table-size splitting
+
+      // Remap all actions
+      h.actions = h.actions.map(a => {
+        const mapped = idToPlayer[a.id];
+        if (!mapped) return a; // keep unmapped for preflop logic (raise counting)
+        return { ...a, name: mapped, id: mapped };
+      });
+
+      // Remap shows
+      h.shows = h.shows
+        .filter(s => idToPlayer[s.id])
+        .map(s => ({ ...s, name: idToPlayer[s.id], id: idToPlayer[s.id] }));
+
+      // Remap collections
+      h.collections = h.collections
+        .filter(c => idToPlayer[c.id])
+        .map(c => ({ ...c, name: idToPlayer[c.id], id: idToPlayer[c.id] }));
+
+      // Remap dealer
+      if (idToPlayer[h.dealerId]) {
+        h.dealerName = idToPlayer[h.dealerId];
+        h.dealerId = idToPlayer[h.dealerId];
+      }
+
+      return h;
+    });
+  }
+
   // ── Public API ───────────────────────────────────────────────────────
   window.PokerAnalytics = {
     parseCSVRows,
@@ -719,6 +766,7 @@
     normalizeCardText,
     createEmptyPlayerStats,
     mergeBuckets,
+    remapPlayerNames,
     // For testing/debug
     analyzePreflopActions,
     detectCbet,
