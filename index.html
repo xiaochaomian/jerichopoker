@@ -1222,7 +1222,7 @@
       <button class="tab active" data-tab="dashboard" onclick="switchTab('dashboard', event)">Dashboard</button>
       <button class="tab" data-tab="games" onclick="switchTab('games', event)">Game History</button>
       <button class="tab" data-tab="payments" onclick="switchTab('payments', event)">Payments</button>
-      <button class="tab" data-tab="analytics" onclick="switchTab('analytics', event)">Analytics</button>
+      <button class="tab" data-tab="analytics" onclick="switchTab('analytics', event)" style="display:none;">Analytics</button>
       <button class="tab" data-tab="upload" onclick="switchTab('upload', event)" id="uploadTab">Upload Game</button>
     </div>
 
@@ -1886,6 +1886,7 @@
       const badge = document.getElementById('modeBadge');
       const btn = document.getElementById('loginBtn');
       const uploadTab = document.getElementById('uploadTab');
+      const analyticsTab = document.querySelector('.tab[data-tab="analytics"]');
       const managePlayers = document.getElementById('managePlayers');
       const dataManagement = document.getElementById('dataManagement');
       const settleActions = document.getElementById('settleActions');
@@ -1895,6 +1896,7 @@
         badge.textContent = 'Owner'; badge.className = 'mode-badge admin';
         btn.textContent = 'Logout';
         uploadTab.style.display = '';
+        if (analyticsTab) analyticsTab.style.display = '';
         if (managePlayers) managePlayers.style.display = '';
         if (dataManagement) dataManagement.style.display = '';
         if (settleActions) settleActions.classList.remove('hidden');
@@ -1906,22 +1908,27 @@
         badge.textContent = 'Admin'; badge.className = 'mode-badge admin';
         btn.textContent = 'Logout';
         uploadTab.style.display = '';
+        if (analyticsTab) analyticsTab.style.display = 'none';
         if (managePlayers) managePlayers.style.display = '';
         if (dataManagement) dataManagement.style.display = '';
         if (settleActions) settleActions.classList.remove('hidden');
         if (ownerDashboard) ownerDashboard.style.display = 'none';
         if (ownerPinSection) ownerPinSection.style.display = 'none';
         renderPlayerList();
+        if (currentTab === 'analytics') {
+          document.querySelector('.tab[data-tab="dashboard"]').click();
+        }
       } else {
         badge.textContent = 'Viewer'; badge.className = 'mode-badge viewer';
         btn.textContent = 'Admin Login';
         uploadTab.style.display = 'none';
+        if (analyticsTab) analyticsTab.style.display = 'none';
         if (managePlayers) managePlayers.style.display = 'none';
         if (dataManagement) dataManagement.style.display = 'none';
         if (settleActions) settleActions.classList.add('hidden');
         if (ownerDashboard) ownerDashboard.style.display = 'none';
         if (ownerPinSection) ownerPinSection.style.display = 'none';
-        if (currentTab === 'upload') {
+        if (currentTab === 'upload' || currentTab === 'analytics') {
           document.querySelector('.tab[data-tab="dashboard"]').click();
         }
       }
@@ -3030,6 +3037,7 @@
 
     function handleHandLogFile(file) {
       if (!file) return;
+      if (!state.isOwner) { alert('Only the owner can upload hand logs.'); return; }
       const statusEl = document.getElementById('handLogStatus');
       statusEl.style.display = '';
       statusEl.textContent = 'Parsing hand log...';
