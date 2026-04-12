@@ -218,8 +218,10 @@
   //   wonAtShowdown: did they win at showdown?
 
   function analyzePreflopActions(hand) {
-    const preflopActions = hand.actions.filter(a => a.phase === 'preflop');
-    const playerIds = hand.players.map(p => p.id);
+    const actions = Array.isArray(hand.actions) ? hand.actions : [];
+    const players = Array.isArray(hand.players) ? hand.players : [];
+    const preflopActions = actions.filter(a => a.phase === 'preflop');
+    const playerIds = players.map(p => p.id);
     const bbId = (preflopActions.find(a => a.type === 'bb') || {}).id;
 
     // Track raise count: open-raise = 1, 3bet = 2, 4bet = 3, etc.
@@ -322,6 +324,7 @@
 
   // ── Detect continuation bets ─────────────────────────────────────────
   function detectCbet(hand) {
+    const actions = Array.isArray(hand.actions) ? hand.actions : [];
     const pfr = analyzePreflopActions(hand);
     // Find who was the last preflop aggressor (PFR)
     let lastAggressor = null;
@@ -329,12 +332,12 @@
       if (pfr[pid].pfr) lastAggressor = pid;
     }
     // Actually find the LAST raiser preflop
-    const preflopRaises = hand.actions.filter(a => a.phase === 'preflop' && a.type === 'raise');
+    const preflopRaises = actions.filter(a => a.phase === 'preflop' && a.type === 'raise');
     if (preflopRaises.length) {
       lastAggressor = preflopRaises[preflopRaises.length - 1].id;
     }
 
-    const flopActions = hand.actions.filter(a => a.phase === 'flop');
+    const flopActions = actions.filter(a => a.phase === 'flop');
     const result = {};
     // Check if the PFR bet the flop
     for (const a of flopActions) {
@@ -350,7 +353,7 @@
     // Was there a PFR who reached the flop at all?
     if (lastAggressor && !result[lastAggressor]) {
       // Check if the PFR folded before flop or wasn't in the hand at flop
-      const foldedPreflop = hand.actions.some(a => a.phase === 'preflop' && a.type === 'fold' && a.id === lastAggressor);
+      const foldedPreflop = actions.some(a => a.phase === 'preflop' && a.type === 'fold' && a.id === lastAggressor);
       if (!foldedPreflop && flopActions.length > 0) {
         result[lastAggressor] = { cbet: false };
       }
@@ -361,7 +364,8 @@
   // ── Compute aggression per street ────────────────────────────────────
   function computeAggression(hand) {
     const result = {};
-    for (const a of hand.actions) {
+    const actions = Array.isArray(hand.actions) ? hand.actions : [];
+    for (const a of actions) {
       if (a.type === 'sb' || a.type === 'bb' || a.type === 'missing_sb') continue;
       if (!result[a.id]) result[a.id] = { bets: 0, raises: 0, calls: 0, checks: 0, folds: 0 };
       const r = result[a.id];
@@ -377,18 +381,22 @@
   // ── Determine showdown participants ──────────────────────────────────
   function showdownInfo(hand) {
     const result = {};
+    const actions = Array.isArray(hand.actions) ? hand.actions : [];
+    const players = Array.isArray(hand.players) ? hand.players : [];
+    const communityCards = Array.isArray(hand.communityCards) ? hand.communityCards : [];
+    const collections = Array.isArray(hand.collections) ? hand.collections : [];
     // Players who did NOT fold
     const folded = new Set();
-    for (const a of hand.actions) {
+    for (const a of actions) {
       if (a.type === 'fold') folded.add(a.id);
     }
-    const activePlayers = hand.players.filter(p => !folded.has(p.id));
+    const activePlayers = players.filter(p => !folded.has(p.id));
     // If > 1 active player AND we have community cards through the river, it's a showdown
-    const hasRiver = hand.communityCards.some(c => c.street === 'river');
+    const hasRiver = communityCards.some(c => c.street === 'river');
     const isShowdown = activePlayers.length > 1 && hasRiver;
 
     if (isShowdown) {
-      const winnerIds = new Set(hand.collections.map(c => c.id));
+      const winnerIds = new Set(collections.map(c => c.id));
       activePlayers.forEach(p => {
         result[p.id] = {
           wentToShowdown: true,
@@ -402,9 +410,11 @@
   // ── Extract 3bet/4bet ranges from shown hands ────────────────────────
   function extract3bet4betRanges(hand) {
     const preflopAnalysis = analyzePreflopActions(hand);
+    const shows = Array.isArray(hand.shows) ? hand.shows : [];
+    const collections = Array.isArray(hand.collections) ? hand.collections : [];
     const ranges = [];
 
-    for (const show of hand.shows) {
+    for (const show of shows) {
       const pa = preflopAnalysis[show.id];
       if (!pa) continue;
       if (pa.threeBet || pa.fourBet) {
@@ -423,7 +433,7 @@
     }
 
     // Also check collections with hand strengths (they show the combination)
-    for (const col of hand.collections) {
+    for (const col of collections) {
       const pa = preflopAnalysis[col.id];
       if (!pa) continue;
       if ((pa.threeBet || pa.fourBet) && col.handStrength) {
@@ -432,7 +442,7 @@
         if (alreadyShown) continue;
         // We know they won, but we may not have their exact hole cards from shows
         // Check if they showed
-        const shown = hand.shows.find(s => s.id === col.id);
+        const shown = shows.find(s => s.id === col.id);
         if (!shown) continue; // can't determine hole cards
       }
     }
@@ -454,6 +464,13 @@
 
     for (const hand of hands) {
       if (processedHandIds.has(hand.id)) continue; // skip duplicates
+
+      // Ensure arrays survive Firebase round-trips (Firebase drops empty arrays)
+      if (!Array.isArray(hand.players)) hand.players = [];
+      if (!Array.isArray(hand.actions)) hand.actions = [];
+      if (!Array.isArray(hand.shows)) hand.shows = [];
+      if (!Array.isArray(hand.collections)) hand.collections = [];
+      if (!Array.isArray(hand.communityCards)) hand.communityCards = [];
 
       const tableSize = hand.numPlayers > 7 ? 'full' : 'short';
       const preflopAnalysis = analyzePreflopActions(hand);
@@ -545,7 +562,7 @@
       }
 
       // Track all shown hands (even non-3bet/4bet)
-      for (const show of hand.shows) {
+      for (const show of (hand.shows || [])) {
         if (!stats[show.id]) continue;
         stats[show.id].shownHands.push({
           cards: show.cards,
@@ -718,9 +735,16 @@
     return hands.map(hand => {
       const h = JSON.parse(JSON.stringify(hand)); // deep clone
 
+      // Ensure arrays exist (may be missing after serialization round-trips)
+      if (!Array.isArray(h.players)) h.players = [];
+      if (!Array.isArray(h.actions)) h.actions = [];
+      if (!Array.isArray(h.shows)) h.shows = [];
+      if (!Array.isArray(h.collections)) h.collections = [];
+      if (!Array.isArray(h.communityCards)) h.communityCards = [];
+
       // Remap players array — only keep mapped players
       h.players = h.players
-        .filter(p => idToPlayer[p.id])
+        .filter(p => p && idToPlayer[p.id])
         .map(p => ({
           ...p,
           name: idToPlayer[p.id],
@@ -731,6 +755,7 @@
 
       // Remap all actions
       h.actions = h.actions.map(a => {
+        if (!a) return a;
         const mapped = idToPlayer[a.id];
         if (!mapped) return a; // keep unmapped for preflop logic (raise counting)
         return { ...a, name: mapped, id: mapped };
@@ -738,16 +763,16 @@
 
       // Remap shows
       h.shows = h.shows
-        .filter(s => idToPlayer[s.id])
+        .filter(s => s && idToPlayer[s.id])
         .map(s => ({ ...s, name: idToPlayer[s.id], id: idToPlayer[s.id] }));
 
       // Remap collections
       h.collections = h.collections
-        .filter(c => idToPlayer[c.id])
+        .filter(c => c && idToPlayer[c.id])
         .map(c => ({ ...c, name: idToPlayer[c.id], id: idToPlayer[c.id] }));
 
       // Remap dealer
-      if (idToPlayer[h.dealerId]) {
+      if (h.dealerId && idToPlayer[h.dealerId]) {
         h.dealerName = idToPlayer[h.dealerId];
         h.dealerId = idToPlayer[h.dealerId];
       }
