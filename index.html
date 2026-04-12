@@ -3112,8 +3112,9 @@
             return;
           }
 
-          statusEl.textContent = 'Parsed ' + hands.length + ' hands. Please map nicknames to players below.';
+          statusEl.textContent = 'Parsed ' + hands.length + ' hands. Map nicknames below, then click Confirm.';
           pendingHandLogHands = hands;
+          console.log('[Analytics] Parsed ' + hands.length + ' hands, showing mapping step');
           showHandLogMappingStep(hands);
         } catch (err) {
           statusEl.textContent = 'Error parsing file: ' + err.message;
@@ -3195,67 +3196,91 @@
     }
 
     function confirmHandLogMapping() {
-      if (!pendingHandLogHands) return;
+      console.log('[Analytics] confirmHandLogMapping called, pendingHands:', pendingHandLogHands ? pendingHandLogHands.length : null);
 
-      // Build mapping: pokerId -> realPlayerName
-      const idToPlayer = {};
-      const selects = document.querySelectorAll('#handLogMappingList select');
-      let mappedCount = 0;
-      selects.forEach(function (sel) {
-        const player = sel.value;
-        const pokerId = sel.dataset.pokerId;
-        const pokerName = sel.dataset.pokerName;
-        if (player) {
-          idToPlayer[pokerId] = player;
-          mappedCount++;
-          // Remember this mapping for future uploads
-          state.nickMemory[pokerName.toLowerCase().trim()] = player;
-        }
-      });
-
-      if (mappedCount === 0) {
-        alert('Please assign at least one nickname to a player.');
+      if (!pendingHandLogHands || !pendingHandLogHands.length) {
+        alert('No hand data to process. Please re-upload the CSV.');
         return;
       }
 
-      // Remap all hands: replace player IDs/names with the real player name
-      const remappedHands = PokerAnalytics.remapPlayerNames(pendingHandLogHands, idToPlayer);
+      try {
+        // Build mapping: pokerId -> realPlayerName
+        const idToPlayer = {};
+        const selects = document.querySelectorAll('#handLogMappingList select');
+        let mappedCount = 0;
+        console.log('[Analytics] Found ' + selects.length + ' mapping selects');
 
-      // Store this upload for later removal/recompute
-      if (!state.handLogUploads) state.handLogUploads = [];
-      state.handLogUploads.push({
-        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-        filename: pendingHandLogFilename,
-        date: new Date().toISOString(),
-        handCount: remappedHands.length,
-        hands: remappedHands,
-      });
+        selects.forEach(function (sel) {
+          const player = sel.value;
+          const pokerId = sel.dataset.pokerId;
+          const pokerName = sel.dataset.pokerName;
+          if (player) {
+            idToPlayer[pokerId] = player;
+            mappedCount++;
+            // Remember this mapping for future uploads
+            state.nickMemory[pokerName.toLowerCase().trim()] = player;
+          }
+        });
 
-      // Recompute all stats from scratch using all uploads
-      recomputeAnalyticsFromUploads();
+        console.log('[Analytics] Mapped ' + mappedCount + ' players:', JSON.stringify(idToPlayer));
 
-      const playerCount = Object.keys(state.playerAnalytics).length;
-      const statusEl = document.getElementById('handLogStatus');
-      statusEl.style.display = '';
-      statusEl.textContent = 'Processed ' + remappedHands.length + ' hands across ' + playerCount + ' players. Analytics updated!';
-      statusEl.style.borderColor = 'rgba(0,184,148,0.5)';
-      statusEl.style.background = 'rgba(0,184,148,0.1)';
-      statusEl.style.color = 'var(--green)';
+        if (mappedCount === 0) {
+          alert('Please assign at least one nickname to a player.');
+          return;
+        }
 
-      pendingHandLogHands = null;
-      pendingHandLogFilename = '';
-      document.getElementById('handLogUploadCard').classList.remove('hidden');
-      document.getElementById('handLogMappingCard').classList.add('hidden');
-      renderAnalytics();
+        // Remap all hands: replace player IDs/names with the real player name
+        const remappedHands = PokerAnalytics.remapPlayerNames(pendingHandLogHands, idToPlayer);
+        console.log('[Analytics] Remapped ' + remappedHands.length + ' hands');
+
+        // Store this upload for later removal/recompute
+        if (!state.handLogUploads) state.handLogUploads = [];
+        state.handLogUploads.push({
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          filename: pendingHandLogFilename,
+          date: new Date().toISOString(),
+          handCount: remappedHands.length,
+          hands: remappedHands,
+        });
+
+        // Recompute all stats from scratch using all uploads
+        recomputeAnalyticsFromUploads();
+        console.log('[Analytics] Recompute done, players:', Object.keys(state.playerAnalytics).length);
+
+        const playerCount = Object.keys(state.playerAnalytics).length;
+        const statusEl = document.getElementById('handLogStatus');
+        statusEl.style.display = '';
+        statusEl.textContent = 'Processed ' + remappedHands.length + ' hands across ' + playerCount + ' players. Analytics updated!';
+        statusEl.style.borderColor = 'rgba(0,184,148,0.5)';
+        statusEl.style.background = 'rgba(0,184,148,0.1)';
+        statusEl.style.color = 'var(--green)';
+
+        pendingHandLogHands = null;
+        pendingHandLogFilename = '';
+        document.getElementById('handLogUploadCard').classList.remove('hidden');
+        document.getElementById('handLogMappingCard').classList.add('hidden');
+        renderAnalytics();
+        showToast('Analytics updated!');
+      } catch (err) {
+        console.error('[Analytics] confirmHandLogMapping error:', err);
+        alert('Error processing hands: ' + err.message);
+      }
     }
 
     function recomputeAnalyticsFromUploads() {
       // Rebuild stats from scratch using all stored uploads
-      let stats = {};
-      (state.handLogUploads || []).forEach(function (upload) {
-        stats = PokerAnalytics.computeAllStats(upload.hands, stats);
-      });
+      var stats = {};
+      var uploads = state.handLogUploads || [];
+      console.log('[Analytics] Recomputing from ' + uploads.length + ' uploads');
+      for (var i = 0; i < uploads.length; i++) {
+        var upload = uploads[i];
+        if (upload && upload.hands && upload.hands.length) {
+          console.log('[Analytics] Processing upload "' + upload.filename + '" with ' + upload.hands.length + ' hands');
+          stats = PokerAnalytics.computeAllStats(upload.hands, stats);
+        }
+      }
       state.playerAnalytics = stats;
+      console.log('[Analytics] Recompute complete, player count:', Object.keys(stats).length);
       saveState();
     }
 
