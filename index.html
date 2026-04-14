@@ -1763,8 +1763,8 @@
         if (data) {
           state.handLogUploads = data.handLogUploads || [];
         }
-        // Recompute stats from stored uploads
-        recomputeAnalyticsFromUploads();
+        // Recompute stats in memory only (do NOT call saveAnalytics — that would re-trigger this listener)
+        rebuildAnalyticsInMemory();
         if (currentTab === 'analytics') renderAnalytics();
       }, (err) => {
         console.error('Firebase analytics read error:', err);
@@ -1780,7 +1780,7 @@
           state.handLogUploads = parsed.handLogUploads || [];
         }
       } catch (e) { }
-      recomputeAnalyticsFromUploads();
+      rebuildAnalyticsInMemory();
     }
 
     function loadFromLocalStorage() {
@@ -3300,8 +3300,8 @@
       }
     }
 
-    function recomputeAnalyticsFromUploads() {
-      // Parse each stored CSV fresh + remap with stored mapping → compute stats
+    // Rebuild stats in memory only — called from Firebase listener (must NOT write back)
+    function rebuildAnalyticsInMemory() {
       var stats = {};
       var uploads = state.handLogUploads || [];
       for (var i = 0; i < uploads.length; i++) {
@@ -3317,7 +3317,11 @@
         }
       }
       state.playerAnalytics = stats;
-      // Analytics saved separately — don't call saveState() here
+    }
+
+    // Rebuild stats AND persist to Firebase — called from user actions (confirm, remove)
+    function recomputeAnalyticsFromUploads() {
+      rebuildAnalyticsInMemory();
       saveAnalytics();
     }
 
