@@ -1680,8 +1680,8 @@
       nickMemory: {},
       manualAdjustments: [], // { player, amount (cents), reason, date } — manual balance tweaks
       paymentHistory: [],   // chronological log of all payment events for interpretability
-      playerAnalytics: {},  // { playerId: { name, full: {...}, short: {...}, rangeHistory, shownHands, processedHands } }
-      handLogUploads: [],   // { id, filename, date, hands (remapped), mapping } — for recompute on removal
+      playerAnalytics: {},  // derived from handLogUploads, never stored directly
+      handLogUploads: [],   // { id, filename, date, csvText, mapping } — stored in separate Firebase path
     };
 
     let currentTab = 'dashboard';
@@ -1702,8 +1702,6 @@
           state.nickMemory = data.nickMemory || {};
           state.manualAdjustments = data.manualAdjustments || [];
           state.paymentHistory = data.paymentHistory || [];
-          state.playerAnalytics = data.playerAnalytics || {};
-          state.handLogUploads = data.handLogUploads || [];
         }
         firebaseReady = true;
         updateSyncBadge(true);
@@ -1716,6 +1714,9 @@
         refreshCurrentTab();
       });
 
+      // Load analytics from separate path
+      loadAnalyticsFromFirebase();
+
       // Connection state
       db.ref('.info/connected').on('value', (snap) => {
         updateSyncBadge(snap.val() === true);
@@ -1723,6 +1724,7 @@
     }
 
     function saveState() {
+      // Core data only — no analytics (stored separately to prevent large payloads breaking saves)
       const payload = {
         players: state.players,
         games: state.games,
@@ -1731,8 +1733,6 @@
         nickMemory: state.nickMemory,
         manualAdjustments: state.manualAdjustments,
         paymentHistory: state.paymentHistory,
-        playerAnalytics: state.playerAnalytics,
-        handLogUploads: state.handLogUploads,
       };
       // Save to Firebase
       dbRef('state').set(payload).catch((err) => {
@@ -1741,6 +1741,46 @@
       });
       // Also save to localStorage as fallback
       try { localStorage.setItem('jerichoPoker', JSON.stringify(payload)); } catch (e) { }
+    }
+
+    function saveAnalytics() {
+      // Analytics stored at a separate Firebase path and localStorage key
+      // handLogUploads stores { id, filename, date, csvText, mapping } — raw CSV + mapping only
+      const payload = {
+        handLogUploads: (state.handLogUploads || []).map(function (u) {
+          return { id: u.id, filename: u.filename, date: u.date, handCount: u.handCount, csvText: u.csvText, mapping: u.mapping };
+        }),
+      };
+      dbRef('analytics').set(payload).catch((err) => {
+        console.error('Firebase analytics write error:', err);
+      });
+      try { localStorage.setItem('jerichoPokerAnalytics', JSON.stringify(payload)); } catch (e) { }
+    }
+
+    function loadAnalyticsFromFirebase() {
+      dbRef('analytics').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          state.handLogUploads = data.handLogUploads || [];
+        }
+        // Recompute stats from stored uploads
+        recomputeAnalyticsFromUploads();
+        if (currentTab === 'analytics') renderAnalytics();
+      }, (err) => {
+        console.error('Firebase analytics read error:', err);
+        loadAnalyticsFromLocalStorage();
+      });
+    }
+
+    function loadAnalyticsFromLocalStorage() {
+      try {
+        const s = localStorage.getItem('jerichoPokerAnalytics');
+        if (s) {
+          const parsed = JSON.parse(s);
+          state.handLogUploads = parsed.handLogUploads || [];
+        }
+      } catch (e) { }
+      recomputeAnalyticsFromUploads();
     }
 
     function loadFromLocalStorage() {
@@ -1755,10 +1795,9 @@
           state.nickMemory = parsed.nickMemory || {};
           state.manualAdjustments = parsed.manualAdjustments || [];
           state.paymentHistory = parsed.paymentHistory || [];
-          state.playerAnalytics = parsed.playerAnalytics || {};
-          state.handLogUploads = parsed.handLogUploads || [];
         }
       } catch (e) { }
+      loadAnalyticsFromLocalStorage();
     }
 
     function updateSyncBadge(online) {
@@ -3086,35 +3125,37 @@
     let analyticsSelectedPlayer = null;
     let analyticsTableSize = 'all';
 
-    let pendingHandLogHands = null; // parsed hands waiting for mapping
+    let pendingHandLogCSV = null;     // raw CSV text waiting for mapping
+    let pendingHandLogHands = null;   // parsed hands (temporary, never stored)
     let pendingHandLogFilename = '';
 
     function handleHandLogFile(file) {
       if (!file) return;
       if (!state.isOwner) { alert('Only the owner can upload hand logs.'); return; }
       pendingHandLogFilename = file.name || 'hand-log.csv';
-      const statusEl = document.getElementById('handLogStatus');
+      var statusEl = document.getElementById('handLogStatus');
       statusEl.style.display = '';
       statusEl.style.borderColor = '';
       statusEl.style.background = '';
       statusEl.style.color = '';
       statusEl.textContent = 'Parsing hand log...';
 
-      const reader = new FileReader();
+      var reader = new FileReader();
       reader.onload = function (e) {
         try {
-          const rows = PokerAnalytics.parseCSVRows(e.target.result);
-          const hands = PokerAnalytics.parseHands(rows);
+          var csvText = e.target.result;
+          var rows = PokerAnalytics.parseCSVRows(csvText);
+          var hands = PokerAnalytics.parseHands(rows);
           if (!hands.length) {
-            statusEl.textContent = 'No hands found in file. Make sure this is a PokerNow hand-log CSV (not a ledger).';
+            statusEl.textContent = 'No hands found. Make sure this is a PokerNow hand-log CSV (not a ledger).';
             statusEl.style.borderColor = 'rgba(225,112,85,0.5)';
             statusEl.style.color = 'var(--red)';
             return;
           }
 
           statusEl.textContent = 'Parsed ' + hands.length + ' hands. Map nicknames below, then click Confirm.';
+          pendingHandLogCSV = csvText;
           pendingHandLogHands = hands;
-          console.log('[Analytics] Parsed ' + hands.length + ' hands, showing mapping step');
           showHandLogMappingStep(hands);
         } catch (err) {
           statusEl.textContent = 'Error parsing file: ' + err.message;
@@ -3128,49 +3169,46 @@
     }
 
     function showHandLogMappingStep(hands) {
-      // Collect unique players: { "name @ id" -> { name, id, handCount } }
-      const playerMap = {};
+      var playerMap = {};
       hands.forEach(function (h) {
-        h.players.forEach(function (p) {
-          const key = p.name + ' @ ' + p.id;
+        (h.players || []).forEach(function (p) {
+          var key = p.name + ' @ ' + p.id;
           if (!playerMap[key]) playerMap[key] = { name: p.name, id: p.id, handCount: 0 };
           playerMap[key].handCount++;
         });
       });
 
-      const list = document.getElementById('handLogMappingList');
+      var list = document.getElementById('handLogMappingList');
       list.innerHTML = '';
 
-      // Sort by hand count descending
-      const entries = Object.values(playerMap).sort(function (a, b) { return b.handCount - a.handCount; });
+      var entries = Object.values(playerMap).sort(function (a, b) { return b.handCount - a.handCount; });
 
       entries.forEach(function (entry) {
-        const row = document.createElement('div');
+        var row = document.createElement('div');
         row.className = 'mapping-row';
 
-        const nickLabel = document.createElement('span');
+        var nickLabel = document.createElement('span');
         nickLabel.className = 'mapping-nickname';
         nickLabel.textContent = entry.name;
 
-        const arrow = document.createElement('span');
+        var arrow = document.createElement('span');
         arrow.className = 'mapping-arrow';
         arrow.textContent = '\u2192';
 
-        const sel = document.createElement('select');
+        var sel = document.createElement('select');
         sel.dataset.pokerId = entry.id;
         sel.dataset.pokerName = entry.name;
         sel.innerHTML = '<option value="">-- Skip Player --</option>';
         state.players.forEach(function (p) {
-          const opt = document.createElement('option');
+          var opt = document.createElement('option');
           opt.value = p;
           opt.textContent = p;
           sel.appendChild(opt);
         });
-        // Auto-suggest from nickMemory / fuzzy match
-        const suggested = suggestPlayer(entry.name);
+        var suggested = suggestPlayer(entry.name);
         if (suggested) sel.value = suggested;
 
-        const countLabel = document.createElement('span');
+        var countLabel = document.createElement('span');
         countLabel.style.marginLeft = 'auto';
         countLabel.style.fontSize = '0.78rem';
         countLabel.style.color = 'var(--text2)';
@@ -3188,73 +3226,68 @@
     }
 
     function cancelHandLogMapping() {
+      pendingHandLogCSV = null;
       pendingHandLogHands = null;
       document.getElementById('handLogUploadCard').classList.remove('hidden');
       document.getElementById('handLogMappingCard').classList.add('hidden');
-      const statusEl = document.getElementById('handLogStatus');
-      statusEl.style.display = 'none';
+      document.getElementById('handLogStatus').style.display = 'none';
     }
 
     function confirmHandLogMapping() {
-      console.log('[Analytics] confirmHandLogMapping called, pendingHands:', pendingHandLogHands ? pendingHandLogHands.length : null);
-
-      if (!pendingHandLogHands || !pendingHandLogHands.length) {
+      if (!pendingHandLogCSV || !pendingHandLogHands) {
         alert('No hand data to process. Please re-upload the CSV.');
         return;
       }
 
       try {
         // Build mapping: pokerId -> realPlayerName
-        const idToPlayer = {};
-        const selects = document.querySelectorAll('#handLogMappingList select');
-        let mappedCount = 0;
-        console.log('[Analytics] Found ' + selects.length + ' mapping selects');
+        var idToPlayer = {};
+        var selects = document.querySelectorAll('#handLogMappingList select');
+        var mappedCount = 0;
 
         selects.forEach(function (sel) {
-          const player = sel.value;
-          const pokerId = sel.dataset.pokerId;
-          const pokerName = sel.dataset.pokerName;
+          var player = sel.value;
+          var pokerId = sel.dataset.pokerId;
+          var pokerName = sel.dataset.pokerName;
           if (player) {
             idToPlayer[pokerId] = player;
             mappedCount++;
-            // Remember this mapping for future uploads
             state.nickMemory[pokerName.toLowerCase().trim()] = player;
           }
         });
-
-        console.log('[Analytics] Mapped ' + mappedCount + ' players:', JSON.stringify(idToPlayer));
 
         if (mappedCount === 0) {
           alert('Please assign at least one nickname to a player.');
           return;
         }
 
-        // Remap all hands: replace player IDs/names with the real player name
-        const remappedHands = PokerAnalytics.remapPlayerNames(pendingHandLogHands, idToPlayer);
-        console.log('[Analytics] Remapped ' + remappedHands.length + ' hands');
+        // Count hands for display
+        var handCount = pendingHandLogHands.length;
 
-        // Store this upload for later removal/recompute
+        // Store raw CSV + mapping (NOT parsed objects — those don't survive Firebase)
         if (!state.handLogUploads) state.handLogUploads = [];
         state.handLogUploads.push({
           id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
           filename: pendingHandLogFilename,
           date: new Date().toISOString(),
-          handCount: remappedHands.length,
-          hands: remappedHands,
+          handCount: handCount,
+          csvText: pendingHandLogCSV,
+          mapping: idToPlayer,
         });
 
-        // Recompute all stats from scratch using all uploads
+        // Save nick memory (core state) and analytics (separate)
+        saveState();
         recomputeAnalyticsFromUploads();
-        console.log('[Analytics] Recompute done, players:', Object.keys(state.playerAnalytics).length);
 
-        const playerCount = Object.keys(state.playerAnalytics).length;
-        const statusEl = document.getElementById('handLogStatus');
+        var playerCount = Object.keys(state.playerAnalytics).length;
+        var statusEl = document.getElementById('handLogStatus');
         statusEl.style.display = '';
-        statusEl.textContent = 'Processed ' + remappedHands.length + ' hands across ' + playerCount + ' players. Analytics updated!';
+        statusEl.textContent = 'Processed ' + handCount + ' hands across ' + playerCount + ' players. Analytics updated!';
         statusEl.style.borderColor = 'rgba(0,184,148,0.5)';
         statusEl.style.background = 'rgba(0,184,148,0.1)';
         statusEl.style.color = 'var(--green)';
 
+        pendingHandLogCSV = null;
         pendingHandLogHands = null;
         pendingHandLogFilename = '';
         document.getElementById('handLogUploadCard').classList.remove('hidden');
@@ -3262,33 +3295,37 @@
         renderAnalytics();
         showToast('Analytics updated!');
       } catch (err) {
-        console.error('[Analytics] confirmHandLogMapping error:', err);
+        console.error('[Analytics] Error:', err);
         alert('Error processing hands: ' + err.message);
       }
     }
 
     function recomputeAnalyticsFromUploads() {
-      // Rebuild stats from scratch using all stored uploads
+      // Parse each stored CSV fresh + remap with stored mapping → compute stats
       var stats = {};
       var uploads = state.handLogUploads || [];
-      console.log('[Analytics] Recomputing from ' + uploads.length + ' uploads');
       for (var i = 0; i < uploads.length; i++) {
-        var upload = uploads[i];
-        if (upload && upload.hands && upload.hands.length) {
-          console.log('[Analytics] Processing upload "' + upload.filename + '" with ' + upload.hands.length + ' hands');
-          stats = PokerAnalytics.computeAllStats(upload.hands, stats);
+        var u = uploads[i];
+        if (!u || !u.csvText || !u.mapping) continue;
+        try {
+          var rows = PokerAnalytics.parseCSVRows(u.csvText);
+          var hands = PokerAnalytics.parseHands(rows);
+          var remapped = PokerAnalytics.remapPlayerNames(hands, u.mapping);
+          stats = PokerAnalytics.computeAllStats(remapped, stats);
+        } catch (err) {
+          console.error('[Analytics] Error recomputing upload "' + u.filename + '":', err);
         }
       }
       state.playerAnalytics = stats;
-      console.log('[Analytics] Recompute complete, player count:', Object.keys(stats).length);
-      saveState();
+      // Analytics saved separately — don't call saveState() here
+      saveAnalytics();
     }
 
     function removeHandLogUpload(uploadId) {
       if (!state.isOwner) return;
-      const upload = (state.handLogUploads || []).find(function (u) { return u.id === uploadId; });
+      var upload = (state.handLogUploads || []).find(function (u) { return u.id === uploadId; });
       if (!upload) return;
-      if (!confirm('Remove "' + upload.filename + '" (' + upload.handCount + ' hands)? Analytics will be recalculated from remaining uploads.')) return;
+      if (!confirm('Remove "' + upload.filename + '" (' + upload.handCount + ' hands)? Analytics will be recalculated.')) return;
 
       state.handLogUploads = state.handLogUploads.filter(function (u) { return u.id !== uploadId; });
       recomputeAnalyticsFromUploads();
@@ -3538,7 +3575,9 @@
         players: state.players, games: state.games, credits: state.credits,
         settledPayments: state.settledPayments, nickMemory: state.nickMemory,
         manualAdjustments: state.manualAdjustments, paymentHistory: state.paymentHistory,
-        playerAnalytics: state.playerAnalytics, handLogUploads: state.handLogUploads,
+        handLogUploads: (state.handLogUploads || []).map(function (u) {
+          return { id: u.id, filename: u.filename, date: u.date, handCount: u.handCount, csvText: u.csvText, mapping: u.mapping };
+        }),
       }, null, 2);
       const blob = new Blob([data], { type: 'application/json' });
       const a = document.createElement('a');
@@ -3560,9 +3599,10 @@
           state.nickMemory = data.nickMemory || {};
           state.manualAdjustments = data.manualAdjustments || [];
           state.paymentHistory = data.paymentHistory || [];
-          state.playerAnalytics = data.playerAnalytics || {};
           state.handLogUploads = data.handLogUploads || [];
           saveState();
+          saveAnalytics();
+          recomputeAnalyticsFromUploads();
           refreshCurrentTab();
           alert('Data imported!');
         } catch (err) { alert('Invalid JSON: ' + err.message); }
@@ -3583,6 +3623,7 @@
       state.playerAnalytics = {};
       state.handLogUploads = [];
       saveState();
+      saveAnalytics();
       refreshCurrentTab();
       renderPlayerList();
       alert('All data cleared.');
