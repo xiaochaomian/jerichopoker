@@ -1714,6 +1714,10 @@
         refreshCurrentTab();
       });
 
+      // Clean up old bloated fields from state path (from previous architecture)
+      dbRef('state/playerAnalytics').remove().catch(function(){});
+      dbRef('state/handLogUploads').remove().catch(function(){});
+
       // Load analytics from separate path
       loadAnalyticsFromFirebase();
 
@@ -3644,7 +3648,33 @@
       });
     }
 
+    // ========== ERROR HANDLER ==========
+    window.onerror = function (msg, url, line, col, err) {
+      console.error('[PAGE ERROR]', msg, 'at line', line);
+      var toast = document.getElementById('toast');
+      if (toast) {
+        toast.textContent = 'JS Error: ' + msg;
+        toast.style.borderColor = 'var(--red)';
+        toast.style.color = 'var(--red)';
+        toast.classList.add('show');
+        setTimeout(function() { toast.classList.remove('show'); }, 5000);
+      }
+    };
+
     // ========== INIT ==========
+    // One-time cleanup: if old localStorage has bloated playerAnalytics/handLogUploads
+    // inside the core key, strip them out so future loads are fast
+    try {
+      var _oldData = localStorage.getItem('jerichoPoker');
+      if (_oldData && (_oldData.includes('"playerAnalytics"') || _oldData.includes('"handLogUploads"'))) {
+        console.log('[Cleanup] Stripping old analytics from localStorage core key');
+        var _parsed = JSON.parse(_oldData);
+        delete _parsed.playerAnalytics;
+        delete _parsed.handLogUploads;
+        localStorage.setItem('jerichoPoker', JSON.stringify(_parsed));
+      }
+    } catch(e) { console.error('[Cleanup] Error:', e); }
+
     loadFromLocalStorage(); // immediate local load
     loadFromFirebase();     // then sync with Firebase
     updateAuthUI();
