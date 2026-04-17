@@ -11,7 +11,12 @@
   <!-- Firebase SDK (compat for simple inline usage) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-  <script src="poker-analytics.js"></script>
+  <script>
+// ========================================================================
+// POKER ANALYTICS ENGINE (inlined to avoid external script loading issues)
+// ========================================================================
+(function(window){'use strict';var RE={handStart:/^-- starting hand #(\d+) \(id: ([a-z0-9]+)\)\s+No Limit Texas Hold'em \(dealer: "(.+?) @ ([a-zA-Z0-9_\-]+)"\s*\) --$/,handEnd:/^-- ending hand #(\d+) --$/,playerStacks:/^Player stacks: (.+)$/,stackEntry:/#(\d+) "([^"]+) @ ([a-zA-Z0-9_\-]+)" \(([\d.]+)\)/g,yourHand:/^Your hand is (.+)$/,smallBlind:/^"(.+?) @ ([a-zA-Z0-9_\-]+)" posts a small blind of ([\d.]+)$/,bigBlind:/^"(.+?) @ ([a-zA-Z0-9_\-]+)" posts a big blind of ([\d.]+)$/,missingBlind:/^"(.+?) @ ([a-zA-Z0-9_\-]+)" posts a missing small blind of ([\d.]+)$/,calls:/^"(.+?) @ ([a-zA-Z0-9_\-]+)" calls ([\d.]+)(.*)$/,bets:/^"(.+?) @ ([a-zA-Z0-9_\-]+)" bets ([\d.]+)(.*)$/,raises:/^"(.+?) @ ([a-zA-Z0-9_\-]+)" raises to ([\d.]+)(.*)$/,checks:/^"(.+?) @ ([a-zA-Z0-9_\-]+)" checks$/,folds:/^"(.+?) @ ([a-zA-Z0-9_\-]+)" folds$/,flop:/^Flop:\s+\[([^\]]+)\]$/,turn:/^Turn: .+ \[([^\]]+)\]$/,river:/^River: .+ \[([^\]]+)\]$/,flopSecond:/^Flop \(second run\):\s+\[([^\]]+)\]$/,turnSecond:/^Turn \(second run\): .+ \[([^\]]+)\]$/,riverSecond:/^River \(second run\): .+ \[([^\]]+)\]$/,shows:/^"(.+?) @ ([a-zA-Z0-9_\-]+)" shows a (.+)\.$/,collected:/^"(.+?) @ ([a-zA-Z0-9_\-]+)" collected ([\d.]+) from pot(.*)$/,uncalled:/^Uncalled bet of ([\d.]+) returned to "(.+?) @ ([a-zA-Z0-9_\-]+)"$/,allInSuffix:/ and go all in$/};function parseCSVRows(text){var lines=text.trim().split('\n');if(!lines.length)return[];var rows=[];for(var i=1;i<lines.length;i++){var line=lines[i];var entry='',at='',order=0;if(line.startsWith('"')){var j=1;while(j<line.length){if(line[j]==='"'&&line[j+1]==='"'){j+=2;continue;}if(line[j]==='"')break;j++;}entry=line.substring(1,j).replace(/""/g,'"');var rest=line.substring(j+2);var parts=rest.split(',');at=parts[0]||'';order=parseInt(parts[1])||0;}else{var parts2=line.split(',');entry=parts2[0];at=parts2[1]||'';order=parseInt(parts2[2])||0;}rows.push({entry:entry,at:at,order:order});}rows.sort(function(a,b){return a.order-b.order;});return rows;}function parseHands(rows){var hands=[];var current=null;for(var ri=0;ri<rows.length;ri++){var row=rows[ri];var e=row.entry;var m;if((m=e.match(RE.handStart))){current={number:parseInt(m[1]),id:m[2],dealerName:m[3],dealerId:m[4],players:[],actions:[],communityCards:[],shows:[],collections:[],startTime:row.at,phase:'preflop',numPlayers:0,bigBlindAmount:0};continue;}if((m=e.match(RE.handEnd))){if(current){hands.push(current);current=null;}continue;}if(!current)continue;if((m=e.match(RE.playerStacks))){var stackStr=m[1];var sm;var re=/#(\d+) "([^"]+) @ ([a-zA-Z0-9_\-]+)" \(([\d.]+)\)/g;while((sm=re.exec(stackStr))){current.players.push({seat:parseInt(sm[1]),name:sm[2],id:sm[3],stack:parseFloat(sm[4])});}current.numPlayers=current.players.length;continue;}if((m=e.match(RE.smallBlind))){current.actions.push({phase:'preflop',type:'sb',name:m[1],id:m[2],amount:parseFloat(m[3])});continue;}if((m=e.match(RE.bigBlind))){var amt=parseFloat(m[3]);current.bigBlindAmount=amt;current.actions.push({phase:'preflop',type:'bb',name:m[1],id:m[2],amount:amt});continue;}if((m=e.match(RE.missingBlind))){current.actions.push({phase:'preflop',type:'missing_sb',name:m[1],id:m[2],amount:parseFloat(m[3])});continue;}if((m=e.match(RE.flop))||(m=e.match(RE.flopSecond))){current.phase='flop';current.communityCards.push({street:'flop',cards:m[1]});continue;}if((m=e.match(RE.turn))||(m=e.match(RE.turnSecond))){current.phase='turn';current.communityCards.push({street:'turn',cards:m[1]});continue;}if((m=e.match(RE.river))||(m=e.match(RE.riverSecond))){current.phase='river';current.communityCards.push({street:'river',cards:m[1]});continue;}if((m=e.match(RE.raises))){current.actions.push({phase:current.phase,type:'raise',name:m[1],id:m[2],amount:parseFloat(m[3]),allIn:RE.allInSuffix.test(m[4])});continue;}if((m=e.match(RE.bets))){current.actions.push({phase:current.phase,type:'bet',name:m[1],id:m[2],amount:parseFloat(m[3]),allIn:RE.allInSuffix.test(m[4])});continue;}if((m=e.match(RE.calls))){current.actions.push({phase:current.phase,type:'call',name:m[1],id:m[2],amount:parseFloat(m[3]),allIn:RE.allInSuffix.test(m[4])});continue;}if((m=e.match(RE.checks))){current.actions.push({phase:current.phase,type:'check',name:m[1],id:m[2]});continue;}if((m=e.match(RE.folds))){current.actions.push({phase:current.phase,type:'fold',name:m[1],id:m[2]});continue;}if((m=e.match(RE.shows))){current.shows.push({name:m[1],id:m[2],cards:m[3]});continue;}if((m=e.match(RE.collected))){var handStrength='';var extra=m[4];var hsMatch=extra.match(/with (.+?)(?:\s+on the second run)?\s*(?:\(combination: ([^\)]+)\))?$/);if(hsMatch)handStrength=hsMatch[1].trim();current.collections.push({name:m[1],id:m[2],amount:parseFloat(m[3]),handStrength:handStrength});continue;}}return hands;}function sa(arr){return Array.isArray(arr)?arr:[];}function analyzePreflopActions(hand){var actions=sa(hand.actions);var players=sa(hand.players);var preflopActions=actions.filter(function(a){return a.phase==='preflop';});var playerIds=players.map(function(p){return p.id;});var raiseCount=0;var results={};playerIds.forEach(function(pid){results[pid]={vpip:false,pfr:false,isOpenRaiser:false,threeBet:false,fourBet:false,facedThreeBet:false,foldToThreeBet:false,calledThreeBet:false,facedFourBet:false,foldToFourBet:false,calledFourBet:false,lastRaiseLevel:0};});var raiserAtLevel={};for(var i=0;i<preflopActions.length;i++){var action=preflopActions[i];var pid=action.id;if(!results[pid])continue;var r=results[pid];if(action.type==='sb'||action.type==='bb'||action.type==='missing_sb')continue;if(action.type==='call'){r.vpip=true;if(raiseCount>=2&&raiserAtLevel[2]&&raiserAtLevel[2]!==pid){r.facedThreeBet=true;r.calledThreeBet=true;}if(raiseCount>=3&&raiserAtLevel[3]&&raiserAtLevel[3]!==pid){r.facedFourBet=true;r.calledFourBet=true;}}if(action.type==='raise'){r.vpip=true;raiseCount++;raiserAtLevel[raiseCount]=pid;r.lastRaiseLevel=raiseCount;if(raiseCount===1){r.pfr=true;r.isOpenRaiser=true;}else if(raiseCount===2){r.pfr=true;r.threeBet=true;if(raiserAtLevel[1]&&results[raiserAtLevel[1]])results[raiserAtLevel[1]].facedThreeBet=true;}else if(raiseCount===3){r.pfr=true;r.fourBet=true;if(raiserAtLevel[2]&&results[raiserAtLevel[2]])results[raiserAtLevel[2]].facedFourBet=true;}}if(action.type==='fold'){if(raiseCount>=2&&raiserAtLevel[raiseCount]!==pid){if(r.lastRaiseLevel>0&&r.lastRaiseLevel<raiseCount){if(raiseCount===2){r.facedThreeBet=true;r.foldToThreeBet=true;}if(raiseCount===3){r.facedFourBet=true;r.foldToFourBet=true;}}}}}return results;}function detectCbet(hand){var actions=sa(hand.actions);var pfr=analyzePreflopActions(hand);var lastAggressor=null;for(var pid in pfr){if(pfr[pid].pfr)lastAggressor=pid;}var preflopRaises=actions.filter(function(a){return a.phase==='preflop'&&a.type==='raise';});if(preflopRaises.length)lastAggressor=preflopRaises[preflopRaises.length-1].id;var flopActions=actions.filter(function(a){return a.phase==='flop';});var result={};for(var i=0;i<flopActions.length;i++){var a=flopActions[i];if(a.id===lastAggressor&&(a.type==='bet'||a.type==='raise')){result[lastAggressor]={cbet:true};break;}if(a.id===lastAggressor&&a.type==='check'){result[lastAggressor]={cbet:false};break;}}if(lastAggressor&&!result[lastAggressor]){var foldedPreflop=actions.some(function(a){return a.phase==='preflop'&&a.type==='fold'&&a.id===lastAggressor;});if(!foldedPreflop&&flopActions.length>0)result[lastAggressor]={cbet:false};}return result;}function computeAggression(hand){var result={};var actions=sa(hand.actions);for(var i=0;i<actions.length;i++){var a=actions[i];if(a.type==='sb'||a.type==='bb'||a.type==='missing_sb')continue;if(!result[a.id])result[a.id]={bets:0,raises:0,calls:0,checks:0,folds:0};var r=result[a.id];if(a.type==='bet')r.bets++;else if(a.type==='raise')r.raises++;else if(a.type==='call')r.calls++;else if(a.type==='check')r.checks++;else if(a.type==='fold')r.folds++;}return result;}function showdownInfo(hand){var result={};var actions=sa(hand.actions);var players=sa(hand.players);var communityCards=sa(hand.communityCards);var collections=sa(hand.collections);var folded={};for(var i=0;i<actions.length;i++){if(actions[i].type==='fold')folded[actions[i].id]=true;}var activePlayers=players.filter(function(p){return!folded[p.id];});var hasRiver=communityCards.some(function(c){return c.street==='river';});if(activePlayers.length>1&&hasRiver){var winnerIds={};for(var j=0;j<collections.length;j++)winnerIds[collections[j].id]=true;activePlayers.forEach(function(p){result[p.id]={wentToShowdown:true,wonAtShowdown:!!winnerIds[p.id]};});}return result;}function extract3bet4betRanges(hand){var preflopAnalysis=analyzePreflopActions(hand);var shows=sa(hand.shows);var collections=sa(hand.collections);var ranges=[];for(var i=0;i<shows.length;i++){var show=shows[i];var pa=preflopAnalysis[show.id];if(!pa)continue;if(pa.threeBet||pa.fourBet){ranges.push({name:show.name,id:show.id,cards:show.cards,is3bet:pa.threeBet,is4bet:pa.fourBet,numPlayers:hand.numPlayers,handNumber:hand.number,handId:hand.id,date:hand.startTime});}}return ranges;}function computeAllStats(hands,existingStats){var stats=existingStats?JSON.parse(JSON.stringify(existingStats)):{};var processedHandIds={};if(existingStats){Object.keys(existingStats).forEach(function(k){var ps=existingStats[k];(ps.processedHands||[]).forEach(function(hid){processedHandIds[hid]=true;});});}for(var hi=0;hi<hands.length;hi++){var hand=hands[hi];if(processedHandIds[hand.id])continue;if(!Array.isArray(hand.players))hand.players=[];if(!Array.isArray(hand.actions))hand.actions=[];if(!Array.isArray(hand.shows))hand.shows=[];if(!Array.isArray(hand.collections))hand.collections=[];if(!Array.isArray(hand.communityCards))hand.communityCards=[];var tableSize=hand.numPlayers>7?'full':'short';var preflopAnalysis=analyzePreflopActions(hand);var aggression=computeAggression(hand);var cbetInfo=detectCbet(hand);var sdInfo=showdownInfo(hand);var rangeEntries=extract3bet4betRanges(hand);for(var pi=0;pi<hand.players.length;pi++){var player=hand.players[pi];var pid=player.id;if(!stats[pid])stats[pid]=createEmptyPlayerStats(player.name,pid);var ps=stats[pid];ps.name=player.name;if(!ps.processedHands)ps.processedHands=[];ps.processedHands.push(hand.id);var bucket=ps[tableSize];bucket.handsPlayed++;var pfa=preflopAnalysis[pid];if(pfa){if(pfa.vpip)bucket.vpipHands++;if(pfa.pfr)bucket.pfrHands++;if(pfa.threeBet)bucket.threeBetHands++;if(pfa.facedThreeBet){bucket.facedThreeBet++;if(pfa.foldToThreeBet)bucket.foldToThreeBet++;}if(pfa.fourBet)bucket.fourBetHands++;if(pfa.facedFourBet){bucket.facedFourBet++;if(pfa.foldToFourBet)bucket.foldToFourBet++;}}var agg=aggression[pid];if(agg){bucket.totalBets+=agg.bets;bucket.totalRaises+=agg.raises;bucket.totalCalls+=agg.calls;bucket.totalChecks+=agg.checks;bucket.totalFolds+=agg.folds;}var cb=cbetInfo[pid];if(cb!==undefined){bucket.cbetOpportunities++;if(cb.cbet)bucket.cbetMade++;}var sd=sdInfo[pid];if(sd){bucket.wtsd++;if(sd.wonAtShowdown)bucket.wmsd++;}var flopActs=hand.actions.filter(function(a){return a.phase==='flop'&&a.id===pid;});var turnActs=hand.actions.filter(function(a){return a.phase==='turn'&&a.id===pid;});var riverActs=hand.actions.filter(function(a){return a.phase==='river'&&a.id===pid;});countStreetAggression(flopActs,bucket,'flop');countStreetAggression(turnActs,bucket,'turn');countStreetAggression(riverActs,bucket,'river');var allIns=hand.actions.filter(function(a){return a.id===pid&&a.allIn;});if(allIns.length>0)bucket.allInHands++;var foldedPreflop=hand.actions.some(function(a){return a.phase==='preflop'&&a.type==='fold'&&a.id===pid;});if(foldedPreflop)bucket.preflopFolds++;}for(var ri=0;ri<rangeEntries.length;ri++){var entry=rangeEntries[ri];if(!stats[entry.id])continue;if(!stats[entry.id].rangeHistory)stats[entry.id].rangeHistory=[];stats[entry.id].rangeHistory.push(entry);}var showsArr=hand.shows||[];for(var si=0;si<showsArr.length;si++){var show=showsArr[si];if(!stats[show.id])continue;if(!stats[show.id].shownHands)stats[show.id].shownHands=[];stats[show.id].shownHands.push({cards:show.cards,handNumber:hand.number,handId:hand.id,numPlayers:hand.numPlayers,date:hand.startTime});}}return stats;}function countStreetAggression(actions,bucket,street){for(var i=0;i<actions.length;i++){var a=actions[i];if(a.type==='bet'||a.type==='raise')bucket[street+'Aggression']++;if(a.type==='call'||a.type==='check')bucket[street+'Passive']++;bucket[street+'Actions']++;}}function createEmptyPlayerStats(name,id){function eb(){return{handsPlayed:0,vpipHands:0,pfrHands:0,threeBetHands:0,facedThreeBet:0,foldToThreeBet:0,fourBetHands:0,facedFourBet:0,foldToFourBet:0,totalBets:0,totalRaises:0,totalCalls:0,totalChecks:0,totalFolds:0,preflopFolds:0,cbetOpportunities:0,cbetMade:0,wtsd:0,wmsd:0,allInHands:0,flopAggression:0,flopPassive:0,flopActions:0,turnAggression:0,turnPassive:0,turnActions:0,riverAggression:0,riverPassive:0,riverActions:0};}return{name:name,id:id,full:eb(),short:eb(),rangeHistory:[],shownHands:[],processedHands:[]};}function computeDisplayStats(playerStats,tableSize){var b=tableSize==='all'?mergeBuckets(playerStats.full,playerStats.short):playerStats[tableSize];if(!b||b.handsPlayed===0)return null;function pct(n,d){return d>0?(n/d*100).toFixed(1):'\u2014';}function ratio(n,d){return d>0?(n/d).toFixed(2):'\u2014';}var aggressiveActions=b.totalBets+b.totalRaises;var passiveActions=b.totalCalls;return{handsPlayed:b.handsPlayed,vpip:pct(b.vpipHands,b.handsPlayed),pfr:pct(b.pfrHands,b.handsPlayed),threeBet:pct(b.threeBetHands,b.handsPlayed),fourBet:pct(b.fourBetHands,b.handsPlayed),foldTo3bet:pct(b.foldToThreeBet,b.facedThreeBet),foldTo4bet:pct(b.foldToFourBet,b.facedFourBet),af:ratio(aggressiveActions,passiveActions),afq:pct(aggressiveActions,aggressiveActions+passiveActions+b.totalChecks+b.totalFolds),cbet:pct(b.cbetMade,b.cbetOpportunities),wtsd:pct(b.wtsd,b.vpipHands),wmsd:pct(b.wmsd,b.wtsd),preflopFoldPct:pct(b.preflopFolds,b.handsPlayed),allInPct:pct(b.allInHands,b.handsPlayed),flopAF:ratio(b.flopAggression,b.flopPassive),turnAF:ratio(b.turnAggression,b.turnPassive),riverAF:ratio(b.riverAggression,b.riverPassive),_raw:b};}function mergeBuckets(a,b){var merged={};for(var key in a){if(typeof a[key]==='number')merged[key]=(a[key]||0)+(b[key]||0);}return merged;}function normalizeCardText(cardStr){return cardStr.split(',').map(function(c){return c.trim();});}function categorizeHand(cardStr){var cards=normalizeCardText(cardStr);if(cards.length!==2)return null;var rankOrder='AKQJT98765432';function parseCard(c){var rank=c.slice(0,-1);if(rank==='10')rank='T';var suit=c.slice(-1);return{rank:rank,suit:suit};}var c1=parseCard(cards[0]);var c2=parseCard(cards[1]);var r1idx=rankOrder.indexOf(c1.rank);var r2idx=rankOrder.indexOf(c2.rank);var high,low,highSuit,lowSuit;if(r1idx<=r2idx){high=c1.rank;low=c2.rank;highSuit=c1.suit;lowSuit=c2.suit;}else{high=c2.rank;low=c1.rank;highSuit=c2.suit;lowSuit=c1.suit;}var suited=highSuit===lowSuit;var pair=high===low;var label;if(pair)label=high+low;else if(suited)label=high+low+'s';else label=high+low+'o';return{label:label,high:high,low:low,suited:suited,pair:pair};}function remapPlayerNames(hands,idToPlayer){return hands.map(function(hand){var h=JSON.parse(JSON.stringify(hand));if(!Array.isArray(h.players))h.players=[];if(!Array.isArray(h.actions))h.actions=[];if(!Array.isArray(h.shows))h.shows=[];if(!Array.isArray(h.collections))h.collections=[];if(!Array.isArray(h.communityCards))h.communityCards=[];h.players=h.players.filter(function(p){return p&&idToPlayer[p.id];}).map(function(p){return{seat:p.seat,name:idToPlayer[p.id],id:idToPlayer[p.id],stack:p.stack};});h.numPlayers=hand.numPlayers;h.actions=h.actions.map(function(a){if(!a)return a;var mapped=idToPlayer[a.id];if(!mapped)return a;return{phase:a.phase,type:a.type,name:mapped,id:mapped,amount:a.amount,allIn:a.allIn};});h.shows=h.shows.filter(function(s){return s&&idToPlayer[s.id];}).map(function(s){return{name:idToPlayer[s.id],id:idToPlayer[s.id],cards:s.cards};});h.collections=h.collections.filter(function(c){return c&&idToPlayer[c.id];}).map(function(c){return{name:idToPlayer[c.id],id:idToPlayer[c.id],amount:c.amount,handStrength:c.handStrength};});if(h.dealerId&&idToPlayer[h.dealerId]){h.dealerName=idToPlayer[h.dealerId];h.dealerId=idToPlayer[h.dealerId];}return h;});}window.PokerAnalytics={parseCSVRows:parseCSVRows,parseHands:parseHands,computeAllStats:computeAllStats,computeDisplayStats:computeDisplayStats,categorizeHand:categorizeHand,normalizeCardText:normalizeCardText,createEmptyPlayerStats:createEmptyPlayerStats,mergeBuckets:mergeBuckets,remapPlayerNames:remapPlayerNames,analyzePreflopActions:analyzePreflopActions,detectCbet:detectCbet,computeAggression:computeAggression,showdownInfo:showdownInfo,extract3bet4betRanges:extract3bet4betRanges};})(window);
+  </script>
   <style>
     :root {
       --bg: #0f1117;
@@ -429,6 +434,140 @@
     .bar-value {
       font-size: 0.7rem;
       font-weight: 600;
+    }
+
+    /* ---- P&L line chart + player picker ---- */
+    .pnl-picker {
+      position: relative;
+      display: inline-block;
+    }
+
+    .pnl-picker-btn {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 160px;
+      transition: border-color 0.15s;
+    }
+
+    .pnl-picker-btn:hover {
+      border-color: var(--accent);
+    }
+
+    .pnl-picker-caret {
+      color: var(--text2);
+      font-size: 0.7rem;
+    }
+
+    .pnl-picker-panel {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      z-index: 20;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px;
+      min-width: 220px;
+      max-height: 320px;
+      overflow-y: auto;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    .pnl-picker-actions {
+      display: flex;
+      gap: 10px;
+      padding: 0 4px 8px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+
+    .pnl-picker-link {
+      background: none;
+      border: none;
+      color: var(--accent2);
+      font-size: 0.75rem;
+      cursor: pointer;
+      padding: 2px 4px;
+      font-weight: 600;
+    }
+
+    .pnl-picker-link:hover {
+      text-decoration: underline;
+    }
+
+    .pnl-picker-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .pnl-picker-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+
+    .pnl-picker-row:hover {
+      background: rgba(108, 92, 231, 0.12);
+    }
+
+    .pnl-picker-row input {
+      accent-color: var(--accent);
+    }
+
+    .pnl-picker-swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    .pnl-line-svg {
+      width: 100%;
+      height: 360px;
+      display: block;
+    }
+
+    .pnl-line-path {
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .pnl-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 10px;
+      justify-content: center;
+    }
+
+    .pnl-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.78rem;
+      color: var(--text2);
+    }
+
+    .pnl-legend-swatch {
+      width: 14px;
+      height: 3px;
+      border-radius: 2px;
     }
 
     .game-card {
@@ -1266,8 +1405,26 @@
       </div>
       <div class="stats-grid" id="statsGrid"></div>
       <div class="card">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
+          <h2 style="margin:0;">Profitability Over Time</h2>
+          <div class="pnl-picker" id="pnlPlayerPicker">
+            <button type="button" class="pnl-picker-btn" id="pnlPickerBtn" onclick="togglePnlPicker(event)">
+              <span id="pnlPickerLabel">All players</span>
+              <span class="pnl-picker-caret">&#9662;</span>
+            </button>
+            <div class="pnl-picker-panel" id="pnlPickerPanel" style="display:none;">
+              <div class="pnl-picker-actions">
+                <button type="button" class="pnl-picker-link" onclick="setAllPnlPlayers(true)">Select all</button>
+                <button type="button" class="pnl-picker-link" onclick="setAllPnlPlayers(false)">Clear</button>
+              </div>
+              <div class="pnl-picker-list" id="pnlPickerList"></div>
+            </div>
+          </div>
+        </div>
+        <div class="chart-container" id="pnlLineChart"></div>
+      </div>
+      <div class="card">
         <h2>Overall Standings</h2>
-        <div class="chart-container" id="overallChart"></div>
         <table id="standingsTable">
           <thead>
             <tr>
@@ -2266,63 +2423,35 @@
       const nonHostActive = activePlayers.filter(p => p !== RAKE_HOST);
       const mostFrequent = nonHostActive.length ? nonHostActive.sort((a, b) => gameCounts[b] - gameCounts[a])[0] : null;
 
-      if (state.isAdmin) {
-        // Admin: show full financial stats
-        const totalVolume = Object.values(totals).reduce((s, v) => s + Math.abs(v), 0);
-        const biggestWinner = Object.entries(totals).sort((a, b) => b[1] - a[1])[0];
-        grid.innerHTML =
-          '<div class="stat-card"><div class="label">Total Games</div><div class="value">' + totalGames + '</div></div>' +
-          '<div class="stat-card"><div class="label">Active Players</div><div class="value">' + activePlayers.length + '</div></div>' +
-          '<div class="stat-card"><div class="label">Biggest Winner</div><div class="value positive">' + (biggestWinner && biggestWinner[1] > 0 ? biggestWinner[0].split(' ')[0] : '\u2014') + '</div></div>' +
-          '<div class="stat-card"><div class="label">Total Volume</div><div class="value">' + formatMoney(totalVolume / 2) + '</div></div>';
+      // P&L is public: everyone sees financial stats, the line chart, and the full standings.
+      const totalVolume = Object.values(totals).reduce((s, v) => s + Math.abs(v), 0);
+      const biggestWinner = Object.entries(totals).sort((a, b) => b[1] - a[1])[0];
+      grid.innerHTML =
+        '<div class="stat-card"><div class="label">Total Games</div><div class="value">' + totalGames + '</div></div>' +
+        '<div class="stat-card"><div class="label">Active Players</div><div class="value">' + activePlayers.length + '</div></div>' +
+        '<div class="stat-card"><div class="label">Biggest Winner</div><div class="value positive">' + (biggestWinner && biggestWinner[1] > 0 ? biggestWinner[0].split(' ')[0] : '\u2014') + '</div></div>' +
+        '<div class="stat-card"><div class="label">Total Volume</div><div class="value">' + formatMoney(totalVolume / 2) + '</div></div>';
 
-        renderBarChart('overallChart', totals);
-        document.getElementById('overallChart').style.display = '';
-        document.getElementById('publicChartsCard').style.display = 'none';
+      // P&L line chart (cumulative profitability over time) — visible to everyone.
+      renderPnlLineChart(filteredGames);
 
-        // Admin: full standings table with financials
-        document.querySelector('#standingsTable thead').innerHTML =
-          '<tr><th>Player</th><th>Games</th><th>Total Net</th><th>Best Game</th><th>Worst Game</th><th>Avg/Game</th></tr>';
-        const tbody = document.querySelector('#standingsTable tbody');
-        const sorted = Object.entries(totals).filter(([p]) => gameCounts[p] > 0).sort((a, b) => b[1] - a[1]);
-        tbody.innerHTML = sorted.map(([player, net]) => {
-          const cls = net > 0 ? 'positive' : net < 0 ? 'negative' : 'zero';
-          const avg = gameCounts[player] ? net / gameCounts[player] : 0;
-          return '<tr><td>' + player + '</td><td>' + gameCounts[player] + '</td>' +
-            '<td class="' + cls + '">' + formatMoney(net, true) + '</td>' +
-            '<td class="positive">' + (bestGame[player] !== null ? formatMoney(bestGame[player], true) : '\u2014') + '</td>' +
-            '<td class="negative">' + (worstGame[player] !== null ? formatMoney(worstGame[player], true) : '\u2014') + '</td>' +
-            '<td class="' + (avg > 0 ? 'positive' : avg < 0 ? 'negative' : 'zero') + '">' + formatMoney(avg, true) + '</td></tr>';
-        }).join('');
-      } else {
-        // Public: no financial info
-        const avgPlayersPerGame = totalGames ? Math.round(activePlayers.reduce((s, p) => s + gameCounts[p], 0) / totalGames * 10) / 10 : 0;
-        grid.innerHTML =
-          '<div class="stat-card"><div class="label">Total Games</div><div class="value">' + totalGames + '</div></div>' +
-          '<div class="stat-card"><div class="label">Active Players</div><div class="value">' + activePlayers.length + '</div></div>' +
-          '<div class="stat-card"><div class="label">Most Games</div><div class="value">' + (mostFrequent ? mostFrequent.split(' ')[0] : '\u2014') + '</div></div>' +
-          '<div class="stat-card"><div class="label">Avg Players/Game</div><div class="value">' + avgPlayersPerGame + '</div></div>';
+      // Full standings table with financials — visible to everyone.
+      document.querySelector('#standingsTable thead').innerHTML =
+        '<tr><th>Player</th><th>Games</th><th>Total Net</th><th>Best Game</th><th>Worst Game</th><th>Avg/Game</th></tr>';
+      const tbody = document.querySelector('#standingsTable tbody');
+      const sorted = Object.entries(totals).filter(([p]) => gameCounts[p] > 0).sort((a, b) => b[1] - a[1]);
+      tbody.innerHTML = sorted.map(([player, net]) => {
+        const cls = net > 0 ? 'positive' : net < 0 ? 'negative' : 'zero';
+        const avg = gameCounts[player] ? net / gameCounts[player] : 0;
+        return '<tr><td>' + player + '</td><td>' + gameCounts[player] + '</td>' +
+          '<td class="' + cls + '">' + formatMoney(net, true) + '</td>' +
+          '<td class="positive">' + (bestGame[player] !== null ? formatMoney(bestGame[player], true) : '\u2014') + '</td>' +
+          '<td class="negative">' + (worstGame[player] !== null ? formatMoney(worstGame[player], true) : '\u2014') + '</td>' +
+          '<td class="' + (avg > 0 ? 'positive' : avg < 0 ? 'negative' : 'zero') + '">' + formatMoney(avg, true) + '</td></tr>';
+      }).join('');
 
-        // Hide bar chart for public
-        document.getElementById('overallChart').style.display = 'none';
-
-        // Public: just games played, no financials (exclude host)
-        document.querySelector('#standingsTable thead').innerHTML =
-          '<tr><th>Player</th><th>Games</th><th>Win Rate</th></tr>';
-        const tbody = document.querySelector('#standingsTable tbody');
-        const sorted = activePlayers.filter(p => p !== RAKE_HOST).sort((a, b) => gameCounts[b] - gameCounts[a]);
-        tbody.innerHTML = sorted.map(player => {
-          const wins = filteredGames.filter(g => {
-            return g.results[player] !== undefined && g.results[player] > 0;
-          }).length;
-          const wr = gameCounts[player] ? Math.round((wins / gameCounts[player]) * 100) : 0;
-          return '<tr><td>' + player + '</td><td>' + gameCounts[player] + '</td><td>' + wr + '%</td></tr>';
-        }).join('');
-
-        // Show public charts
-        document.getElementById('publicChartsCard').style.display = '';
-        renderPublicCharts(gameCounts, activePlayers, filteredGames);
-      }
+      // Public trend charts remain hidden — the line chart replaces the old bar chart for everyone.
+      document.getElementById('publicChartsCard').style.display = 'none';
     }
 
     function renderPublicCharts(gameCounts, activePlayers, games) {
@@ -2421,6 +2550,265 @@
       });
       html += '</div>';
       container.innerHTML = html;
+    }
+
+    // ========== P&L LINE CHART (public) ==========
+    // pnlSelectedPlayers: Set of player names currently shown on the chart.
+    // null means "not initialized yet" — first render selects everyone.
+    let pnlSelectedPlayers = null;
+    const PNL_COLORS = [
+      '#6c5ce7', '#00b894', '#e17055', '#fdcb6e', '#74b9ff', '#fd79a8',
+      '#a29bfe', '#55efc4', '#e84393', '#81ecec', '#ffeaa7', '#fab1a0',
+      '#00cec9', '#d63031', '#00b894', '#b388ff', '#ff9f43', '#5f27cd'
+    ];
+
+    function escapeHtml(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function renderPnlLineChart(filteredGames) {
+      const container = document.getElementById('pnlLineChart');
+      if (!container) return;
+
+      if (!filteredGames || filteredGames.length === 0) {
+        container.innerHTML = '<p style="text-align:center;color:var(--text2);padding:40px;">No games yet.</p>';
+        updatePnlPickerList([], {});
+        return;
+      }
+
+      // Sort games chronologically; if two games share a date, preserve upload order.
+      const sortedGames = filteredGames.slice().sort((a, b) => {
+        const da = new Date(a.date).getTime();
+        const db = new Date(b.date).getTime();
+        if (da !== db) return da - db;
+        return 0;
+      });
+
+      // Build cumulative P&L series per player. Each player's line starts on the date
+      // of the first game they played in (with the value of that first game's net).
+      const playerSeries = {};
+      sortedGames.forEach(g => {
+        const t = new Date(g.date).getTime();
+        Object.entries(g.results).forEach(([player, net]) => {
+          if (!playerSeries[player]) playerSeries[player] = [];
+          const prev = playerSeries[player].length
+            ? playerSeries[player][playerSeries[player].length - 1].cum
+            : 0;
+          playerSeries[player].push({
+            t: t,
+            date: g.date,
+            dateStr: g.dateStr,
+            gameName: g.name,
+            cum: prev + net
+          });
+        });
+      });
+
+      // Sort players by their final cumulative P&L (descending) so legend reads nicely.
+      const allPlayers = Object.keys(playerSeries).sort((a, b) => {
+        const fa = playerSeries[a][playerSeries[a].length - 1].cum;
+        const fb = playerSeries[b][playerSeries[b].length - 1].cum;
+        return fb - fa;
+      });
+
+      // Assign a stable color per player (based on position in sorted list).
+      const colorMap = {};
+      allPlayers.forEach((p, i) => { colorMap[p] = PNL_COLORS[i % PNL_COLORS.length]; });
+
+      // Initialize selection on first render; otherwise keep user's choices but drop players no longer present.
+      if (pnlSelectedPlayers === null) {
+        pnlSelectedPlayers = new Set(allPlayers);
+      } else {
+        for (const p of Array.from(pnlSelectedPlayers)) {
+          if (!allPlayers.includes(p)) pnlSelectedPlayers.delete(p);
+        }
+      }
+
+      const selectedSeries = allPlayers.filter(p => pnlSelectedPlayers.has(p));
+
+      // SVG geometry
+      const width = 1000;
+      const height = 360;
+      const marginL = 72, marginR = 24, marginT = 20, marginB = 44;
+      const innerW = width - marginL - marginR;
+      const innerH = height - marginT - marginB;
+
+      // X domain: earliest game date → latest game date across all games in the filter.
+      const tMin = new Date(sortedGames[0].date).getTime();
+      const tMax = new Date(sortedGames[sortedGames.length - 1].date).getTime();
+
+      // Y domain: only from the selected series (plus 0 for reference).
+      const allCums = [0];
+      selectedSeries.forEach(p => playerSeries[p].forEach(pt => allCums.push(pt.cum)));
+      let yMin = Math.min.apply(null, allCums);
+      let yMax = Math.max.apply(null, allCums);
+      if (yMin === yMax) { yMin -= 100; yMax += 100; }
+      const yRange = yMax - yMin;
+      const yPad = Math.max(yRange * 0.08, 200);
+      const yLo = yMin - yPad;
+      const yHi = yMax + yPad;
+
+      const xScale = t => {
+        if (tMax === tMin) return marginL + innerW / 2;
+        return marginL + ((t - tMin) / (tMax - tMin)) * innerW;
+      };
+      const yScale = v => {
+        if (yHi === yLo) return marginT + innerH / 2;
+        return marginT + innerH - ((v - yLo) / (yHi - yLo)) * innerH;
+      };
+
+      // Y-axis ticks (~5 evenly spaced, rounded to nice $ values)
+      const tickCount = 5;
+      const rawStep = (yHi - yLo) / tickCount;
+      // Round step up to a nice number (1, 2, 5 × 10^n, working in cents)
+      const magnitude = Math.pow(10, Math.floor(Math.log10(Math.abs(rawStep) || 1)));
+      const normalized = rawStep / magnitude;
+      let niceStep;
+      if (normalized <= 1) niceStep = 1 * magnitude;
+      else if (normalized <= 2) niceStep = 2 * magnitude;
+      else if (normalized <= 5) niceStep = 5 * magnitude;
+      else niceStep = 10 * magnitude;
+      const yTickStart = Math.ceil(yLo / niceStep) * niceStep;
+      const yTicks = [];
+      for (let v = yTickStart; v <= yHi; v += niceStep) yTicks.push(v);
+
+      // X-axis tick dates (up to 6)
+      const xTickCount = Math.min(6, sortedGames.length);
+      const xTicks = [];
+      if (xTickCount === 1) {
+        xTicks.push(tMin);
+      } else {
+        for (let i = 0; i < xTickCount; i++) {
+          xTicks.push(tMin + (i / (xTickCount - 1)) * (tMax - tMin));
+        }
+      }
+
+      // Build SVG
+      let svg = '<svg class="pnl-line-svg" viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="xMidYMid meet">';
+
+      // Horizontal grid + y-axis labels
+      yTicks.forEach(v => {
+        const y = yScale(v);
+        svg += '<line x1="' + marginL + '" x2="' + (width - marginR) + '" y1="' + y + '" y2="' + y + '" stroke="#2e3146" stroke-width="1" />';
+        svg += '<text x="' + (marginL - 8) + '" y="' + (y + 4) + '" text-anchor="end" fill="#9496a8" font-size="11">' + formatMoney(Math.round(v), true) + '</text>';
+      });
+
+      // Zero reference line (dashed, if zero is in range)
+      if (yLo <= 0 && yHi >= 0) {
+        const y0 = yScale(0);
+        svg += '<line x1="' + marginL + '" x2="' + (width - marginR) + '" y1="' + y0 + '" y2="' + y0 + '" stroke="#9496a8" stroke-width="1" stroke-dasharray="4 4" opacity="0.7" />';
+      }
+
+      // X-axis baseline
+      svg += '<line x1="' + marginL + '" x2="' + (width - marginR) + '" y1="' + (height - marginB) + '" y2="' + (height - marginB) + '" stroke="#2e3146" stroke-width="1" />';
+
+      // X-axis date labels
+      xTicks.forEach(t => {
+        const x = xScale(t);
+        const d = new Date(t);
+        const label = (d.getMonth() + 1) + '/' + d.getDate() + '/' + String(d.getFullYear()).slice(-2);
+        svg += '<text x="' + x + '" y="' + (height - marginB + 18) + '" text-anchor="middle" fill="#9496a8" font-size="11">' + label + '</text>';
+      });
+
+      // One path per selected player
+      selectedSeries.forEach(player => {
+        const series = playerSeries[player];
+        if (!series || series.length === 0) return;
+        const color = colorMap[player];
+        let d = '';
+        series.forEach((pt, i) => {
+          const x = xScale(pt.t);
+          const y = yScale(pt.cum);
+          d += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
+        });
+        svg += '<path class="pnl-line-path" d="' + d.trim() + '" stroke="' + color + '" />';
+        // Data points with hover tooltip
+        series.forEach(pt => {
+          const x = xScale(pt.t);
+          const y = yScale(pt.cum);
+          const title = player + ' — ' + pt.gameName + ' (' + pt.dateStr + '): ' + formatMoney(pt.cum, true);
+          svg += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="3" fill="' + color + '" stroke="#1a1d28" stroke-width="1"><title>' + escapeHtml(title) + '</title></circle>';
+        });
+      });
+
+      svg += '</svg>';
+
+      // Legend below chart
+      let legend = '<div class="pnl-legend">';
+      if (selectedSeries.length === 0) {
+        legend += '<span style="color:var(--text2);font-size:0.82rem;">No lines selected \u2014 pick players from the dropdown.</span>';
+      } else {
+        selectedSeries.forEach(p => {
+          const finalCum = playerSeries[p][playerSeries[p].length - 1].cum;
+          const cls = finalCum > 0 ? 'positive' : finalCum < 0 ? 'negative' : 'zero';
+          legend += '<span class="pnl-legend-item">' +
+            '<span class="pnl-legend-swatch" style="background:' + colorMap[p] + '"></span>' +
+            escapeHtml(p) + ' <span class="' + cls + '">' + formatMoney(finalCum, true) + '</span>' +
+            '</span>';
+        });
+      }
+      legend += '</div>';
+
+      container.innerHTML = svg + legend;
+
+      // Refresh the dropdown list (preserves which players are available/colors)
+      updatePnlPickerList(allPlayers, colorMap);
+    }
+
+    function updatePnlPickerList(allPlayers, colorMap) {
+      const list = document.getElementById('pnlPickerList');
+      const label = document.getElementById('pnlPickerLabel');
+      if (!list) return;
+      if (!allPlayers.length) {
+        list.innerHTML = '<p style="color:var(--text2);font-size:0.8rem;padding:4px;">No players yet.</p>';
+        if (label) label.textContent = 'All players';
+        return;
+      }
+      list.innerHTML = allPlayers.map(p => {
+        const checked = pnlSelectedPlayers && pnlSelectedPlayers.has(p) ? 'checked' : '';
+        const c = (colorMap && colorMap[p]) || '#6c5ce7';
+        const safe = escapeHtml(p);
+        // Use data-player to avoid escaping issues in onclick strings
+        return '<label class="pnl-picker-row" data-player="' + safe + '">' +
+          '<input type="checkbox" ' + checked + ' onchange="togglePnlPlayer(this.parentNode.getAttribute(\'data-player\'))" />' +
+          '<span class="pnl-picker-swatch" style="background:' + c + '"></span>' +
+          '<span>' + safe + '</span>' +
+          '</label>';
+      }).join('');
+      if (label) {
+        const count = pnlSelectedPlayers ? pnlSelectedPlayers.size : 0;
+        if (count === allPlayers.length) label.textContent = 'All players (' + count + ')';
+        else if (count === 0) label.textContent = 'No players selected';
+        else label.textContent = count + ' of ' + allPlayers.length + ' players';
+      }
+    }
+
+    function togglePnlPicker(ev) {
+      if (ev) ev.stopPropagation();
+      const panel = document.getElementById('pnlPickerPanel');
+      if (!panel) return;
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function togglePnlPlayer(player) {
+      // Decode HTML entities that may have been applied to data-player
+      const decoded = (new DOMParser()).parseFromString(player, 'text/html').body.textContent || player;
+      if (pnlSelectedPlayers === null) pnlSelectedPlayers = new Set();
+      if (pnlSelectedPlayers.has(decoded)) pnlSelectedPlayers.delete(decoded);
+      else pnlSelectedPlayers.add(decoded);
+      renderDashboard();
+      const panel = document.getElementById('pnlPickerPanel');
+      if (panel) panel.style.display = 'block';
+    }
+
+    function setAllPnlPlayers(selectAll) {
+      const filteredGames = getFilteredGames();
+      const allPlayers = new Set();
+      filteredGames.forEach(g => Object.keys(g.results).forEach(p => allPlayers.add(p)));
+      pnlSelectedPlayers = selectAll ? allPlayers : new Set();
+      renderDashboard();
+      const panel = document.getElementById('pnlPickerPanel');
+      if (panel) panel.style.display = 'block';
     }
 
     // ========== GAMES ==========
@@ -3647,6 +4035,16 @@
         if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
       });
     }
+
+    // ========== P&L PICKER: close on outside click ==========
+    document.addEventListener('click', function (e) {
+      const picker = document.getElementById('pnlPlayerPicker');
+      const panel = document.getElementById('pnlPickerPanel');
+      if (!picker || !panel) return;
+      if (!picker.contains(e.target)) {
+        panel.style.display = 'none';
+      }
+    });
 
     // ========== ERROR HANDLER ==========
     window.onerror = function (msg, url, line, col, err) {
