@@ -1999,46 +1999,48 @@
     function updateLedgerBalanceCheck() {
       const block = document.getElementById('ledgerBalanceBlock');
       if (!block) return;
-      if (!state.games || state.games.length === 0) {
+      // Use the same function the Payments tab feeds into the DP solver.
+      // This reflects all games (with rake), settled credits, and manual adjustments.
+      const balances = (typeof calcNetBalances === 'function') ? calcNetBalances() : {};
+      const entries = Object.entries(balances).filter(([, v]) => Math.abs(v) > 0);
+      if (entries.length === 0 && (!state.games || state.games.length === 0)) {
         block.innerHTML = '<p style="color:var(--text2);margin:0;">No games loaded.</p>';
         return;
       }
       let totalPos = 0, totalNeg = 0;
-      const imbalancedGames = [];
-      state.games.forEach(g => {
-        let sum = 0;
-        Object.values(g.results || {}).forEach(n => {
-          const v = Number(n) || 0;
-          sum += v;
-          if (v > 0) totalPos += v;
-          else if (v < 0) totalNeg += v;
-        });
-        if (sum !== 0) imbalancedGames.push({ name: g.name, date: g.date, sum: sum });
-      });
-      const overallDiff = totalPos + totalNeg;
-      const balanced = overallDiff === 0 && imbalancedGames.length === 0;
+      entries.forEach(([, v]) => { if (v > 0) totalPos += v; else if (v < 0) totalNeg += v; });
+      const residual = totalPos + totalNeg; // should be 0 for a balanced ledger
+      const balanced = residual === 0;
+
+      // Sort: creditors (positive) first, descending, then debtors ascending.
+      entries.sort((a, b) => b[1] - a[1]);
+
       let html = '';
-      html += '<div style="display:flex;flex-wrap:wrap;gap:18px;margin-bottom:8px;">';
-      html += '<div><span style="color:var(--text2);">Total positives:</span> <span class="positive">+' + formatMoney(totalPos) + '</span></div>';
-      html += '<div><span style="color:var(--text2);">Total negatives:</span> <span class="negative">-' + formatMoney(Math.abs(totalNeg)) + '</span></div>';
-      html += '<div><span style="color:var(--text2);">Net difference:</span> <span class="' + (overallDiff === 0 ? 'zero' : 'negative') + '" style="font-weight:700;">' + (overallDiff > 0 ? '+' : overallDiff < 0 ? '-' : '') + formatMoney(Math.abs(overallDiff)) + '</span></div>';
-      html += '<div><span style="color:var(--text2);">Games checked:</span> <strong>' + state.games.length + '</strong></div>';
+      html += '<p style="margin:0 0 8px 0;font-size:0.78rem;color:var(--text2);">';
+      html += 'Net P&amp;L going into the payments DP &mdash; sums all games (rake applied), settled credits, and manual adjustments. Should sum to <strong>$0.00</strong>.';
+      html += '</p>';
+      html += '<div style="display:flex;flex-wrap:wrap;gap:18px;margin-bottom:10px;">';
+      html += '<div><span style="color:var(--text2);">Owed to players (+):</span> <span class="positive">+' + formatMoney(totalPos) + '</span></div>';
+      html += '<div><span style="color:var(--text2);">Owed by players (\u2212):</span> <span class="negative">-' + formatMoney(Math.abs(totalNeg)) + '</span></div>';
+      html += '<div><span style="color:var(--text2);">Residual:</span> <span class="' + (balanced ? 'zero' : 'negative') + '" style="font-weight:700;">' + (residual > 0 ? '+' : residual < 0 ? '-' : '') + formatMoney(Math.abs(residual)) + '</span></div>';
       html += '</div>';
       if (balanced) {
-        html += '<p style="color:var(--green);font-size:0.82rem;margin:4px 0 0 0;font-weight:600;">&#10004; Ledger is balanced &mdash; every game sums to zero.</p>';
+        html += '<p style="color:var(--green);font-size:0.82rem;margin:0 0 10px 0;font-weight:600;">&#10004; Ledger is balanced.</p>';
       } else {
-        html += '<p style="color:var(--red);font-size:0.82rem;margin:4px 0 0 0;font-weight:600;">&#9888; Ledger imbalance detected.</p>';
-        if (imbalancedGames.length > 0) {
-          html += '<div style="margin-top:8px;font-size:0.8rem;color:var(--text2);">' + imbalancedGames.length + ' game' + (imbalancedGames.length === 1 ? '' : 's') + " don't sum to zero:</div>";
-          html += '<ul style="margin:6px 0 0 18px;font-size:0.8rem;padding:0;">';
-          imbalancedGames.forEach(ig => {
-            const cls = ig.sum > 0 ? 'positive' : 'negative';
-            const sign = ig.sum > 0 ? '+' : '-';
-            html += '<li style="margin-bottom:2px;">' + (ig.name || '(unnamed)') + ' <span style="color:var(--text2);">(' + (ig.date || '') + ')</span>: <span class="' + cls + '">' + sign + formatMoney(Math.abs(ig.sum)) + '</span></li>';
-          });
-          html += '</ul>';
-        }
+        html += '<p style="color:var(--red);font-size:0.82rem;margin:0 0 10px 0;font-weight:600;">&#9888; Ledger is off by ' + (residual > 0 ? '+' : '-') + formatMoney(Math.abs(residual)) + ' \u2014 the DP solver will redistribute this onto the largest balance when settling.</p>';
       }
+      html += '<div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">';
+      html += '<table style="width:100%;border-collapse:collapse;font-size:0.82rem;">';
+      html += '<thead style="position:sticky;top:0;background:var(--surface2);"><tr>';
+      html += '<th style="text-align:left;padding:6px 10px;color:var(--text2);font-weight:600;">Player</th>';
+      html += '<th style="text-align:right;padding:6px 10px;color:var(--text2);font-weight:600;">Net P&amp;L</th>';
+      html += '</tr></thead><tbody>';
+      entries.forEach(([player, v]) => {
+        const cls = v > 0 ? 'positive' : v < 0 ? 'negative' : 'zero';
+        html += '<tr><td style="padding:5px 10px;border-top:1px solid var(--border);">' + player + '</td>';
+        html += '<td class="' + cls + '" style="padding:5px 10px;text-align:right;border-top:1px solid var(--border);">' + formatMoney(v, true) + '</td></tr>';
+      });
+      html += '</tbody></table></div>';
       block.innerHTML = html;
     }
 
