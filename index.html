@@ -1122,6 +1122,76 @@
     .range-entry .bet-type.four-bet { color: #fd79a8; }
     .range-entry .meta { color: var(--text2); font-size: 0.72rem; }
 
+    .dual-table-views {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-bottom: 16px;
+    }
+    @media (max-width: 900px) {
+      .dual-table-views { grid-template-columns: 1fr; }
+    }
+    .dual-view-block { min-width: 0; }
+    .dual-view-block h4 {
+      margin: 0 0 8px 0;
+      font-size: 0.78rem;
+      color: var(--text2);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+    .dual-view-block .range-grid { max-width: 100%; }
+
+    .river-raise-list {
+      max-height: 360px;
+      overflow-y: auto;
+    }
+    .river-raise-entry {
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 9px 12px;
+      margin-bottom: 6px;
+      border: 1px solid var(--border);
+    }
+    .river-raise-entry .rr-cards {
+      font-weight: 700;
+      color: var(--gold);
+      font-size: 0.95rem;
+      margin-bottom: 3px;
+    }
+    .river-raise-entry .rr-board {
+      font-size: 0.85rem;
+      color: var(--text);
+      margin-bottom: 3px;
+    }
+    .river-raise-entry .rr-board-label {
+      font-size: 0.65rem;
+      color: var(--text2);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-right: 6px;
+    }
+    .river-raise-entry .rr-board-sep {
+      color: var(--text2);
+      margin: 0 5px;
+    }
+    .river-raise-entry .rr-meta {
+      font-size: 0.7rem;
+      color: var(--text2);
+    }
+    .all-in-tag {
+      display: inline-block;
+      background: rgba(225,112,85,0.2);
+      color: var(--red);
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 0.62rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-left: 6px;
+      letter-spacing: 0.4px;
+    }
+
     .table-size-tabs {
       display: flex;
       gap: 3px;
@@ -1543,8 +1613,8 @@
           <div id="analyticsPlayerView" style="display:none;">
             <div class="table-size-tabs">
               <button class="ts-tab active" data-ts="all" onclick="setAnalyticsTableSize('all', this)">All Tables</button>
-              <button class="ts-tab" data-ts="short" onclick="setAnalyticsTableSize('short', this)">Short (2-7)</button>
-              <button class="ts-tab" data-ts="full" onclick="setAnalyticsTableSize('full', this)">Full (8+)</button>
+              <button class="ts-tab" data-ts="short" onclick="setAnalyticsTableSize('short', this)">Short (2-6)</button>
+              <button class="ts-tab" data-ts="full" onclick="setAnalyticsTableSize('full', this)">Full (7+)</button>
             </div>
 
             <div class="stat-section-title">Core Stats</div>
@@ -1564,8 +1634,31 @@
               <div class="range-legend-item"><div class="range-legend-swatch" style="border:2px solid var(--gold);"></div> 3-Bet</div>
               <div class="range-legend-item"><div class="range-legend-swatch" style="border:2px solid #fd79a8;"></div> 4-Bet</div>
             </div>
-            <div class="range-grid" id="analyticsRangeGrid"></div>
-            <div class="range-history-list" id="analyticsRangeList"></div>
+            <div class="dual-table-views">
+              <div class="dual-view-block">
+                <h4>Short Tables (2-6)</h4>
+                <div class="range-grid" id="analyticsRangeGridShort"></div>
+                <div class="range-history-list" id="analyticsRangeListShort"></div>
+              </div>
+              <div class="dual-view-block">
+                <h4>Full Tables (7+)</h4>
+                <div class="range-grid" id="analyticsRangeGridFull"></div>
+                <div class="range-history-list" id="analyticsRangeListFull"></div>
+              </div>
+            </div>
+
+            <div class="stat-section-title">River Raises &mdash; Hand &amp; Board</div>
+            <p style="font-size:0.78rem;color:var(--text2);margin-bottom:10px;">Every river raise where the player showed their hole cards, paired with the exact board.</p>
+            <div class="dual-table-views">
+              <div class="dual-view-block">
+                <h4>Short Tables (2-6)</h4>
+                <div class="river-raise-list" id="analyticsRiverRaisesShort"></div>
+              </div>
+              <div class="dual-view-block">
+                <h4>Full Tables (7+)</h4>
+                <div class="river-raise-list" id="analyticsRiverRaisesFull"></div>
+              </div>
+            </div>
 
             <div class="stat-section-title">All Shown Hands</div>
             <div class="shown-hands-grid" id="analyticsShownHands"></div>
@@ -3923,8 +4016,13 @@
         { value: display.riverAF, label: 'River AF', sublabel: display._raw.riverAggression + ' agg / ' + display._raw.riverPassive + ' pass' },
       ]);
 
-      // 3bet/4bet range grid
-      renderRangeGrid(ps);
+      // 3bet/4bet range grids — split by table size
+      renderRangeGrid(ps, 'short', 'analyticsRangeGridShort', 'analyticsRangeListShort');
+      renderRangeGrid(ps, 'full', 'analyticsRangeGridFull', 'analyticsRangeListFull');
+
+      // River raises (hand + board) — split by table size
+      renderRiverRaises(ps, 'short', 'analyticsRiverRaisesShort');
+      renderRiverRaises(ps, 'full', 'analyticsRiverRaisesFull');
 
       // Shown hands
       renderShownHands(ps);
@@ -3937,14 +4035,25 @@
       }).join('');
     }
 
-    function renderRangeGrid(ps) {
-      const gridEl = document.getElementById('analyticsRangeGrid');
-      const listEl = document.getElementById('analyticsRangeList');
+    function rangeMatchesFilter(numPlayers, tsFilter) {
+      if (tsFilter === 'short') return numPlayers <= 6;
+      if (tsFilter === 'full') return numPlayers >= 7;
+      return true;
+    }
+
+    function renderRangeGrid(ps, tsFilter, gridId, listId) {
+      const gridEl = document.getElementById(gridId);
+      const listEl = document.getElementById(listId);
+      if (!gridEl || !listEl) return;
       const ranks = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
+
+      const filteredHistory = (ps.rangeHistory || []).filter(function (e) {
+        return rangeMatchesFilter(e.numPlayers, tsFilter);
+      });
 
       // Build lookup from range history
       const rangeLookup = {}; // "AKs" -> { threebet: count, fourbet: count, entries: [] }
-      (ps.rangeHistory || []).forEach(function (entry) {
+      filteredHistory.forEach(function (entry) {
         const cat = PokerAnalytics.categorizeHand(entry.cards);
         if (!cat) return;
         if (!rangeLookup[cat.label]) rangeLookup[cat.label] = { threebet: 0, fourbet: 0, entries: [] };
@@ -3986,9 +4095,9 @@
       gridEl.innerHTML = html;
 
       // Range history list
-      const allEntries = (ps.rangeHistory || []).slice().reverse();
+      const allEntries = filteredHistory.slice().reverse();
       if (!allEntries.length) {
-        listEl.innerHTML = '<p style="color:var(--text2);font-size:0.82rem;">No 3-bet or 4-bet hands shown yet.</p>';
+        listEl.innerHTML = '<p style="color:var(--text2);font-size:0.82rem;">No 3-bet or 4-bet hands shown at this table size yet.</p>';
         return;
       }
       listEl.innerHTML = allEntries.map(function (entry) {
@@ -3999,6 +4108,36 @@
           '<span class="cards">' + entry.cards + '</span>' +
           '<span class="bet-type ' + betClass + '">' + betType + '</span>' +
           '<span class="meta">Hand #' + entry.handNumber + ' &middot; ' + entry.numPlayers + 'p &middot; ' + dateStr + '</span>' +
+          '</div>';
+      }).join('');
+    }
+
+    function renderRiverRaises(ps, tsFilter, listId) {
+      const el = document.getElementById(listId);
+      if (!el) return;
+      const all = (ps.riverRaises || []).slice().reverse();
+      const filtered = all.filter(function (e) {
+        return rangeMatchesFilter(e.numPlayers, tsFilter);
+      });
+      if (!filtered.length) {
+        el.innerHTML = '<p style="color:var(--text2);font-size:0.82rem;">No river raises with shown hole cards at this table size yet.</p>';
+        return;
+      }
+      el.innerHTML = filtered.map(function (e) {
+        const dateStr = new Date(e.date).toLocaleDateString();
+        const allInTag = e.allIn ? '<span class="all-in-tag">all-in</span>' : '';
+        const raiseAmt = (typeof e.raiseAmount === 'number') ? e.raiseAmount : '—';
+        return '<div class="river-raise-entry">' +
+          '<div class="rr-cards">' + e.cards + '</div>' +
+          '<div class="rr-board">' +
+            '<span class="rr-board-label">Board</span>' +
+            (e.flop || '—') +
+            '<span class="rr-board-sep">&middot;</span>' +
+            (e.turn || '—') +
+            '<span class="rr-board-sep">&middot;</span>' +
+            (e.river || '—') +
+          '</div>' +
+          '<div class="rr-meta">Raise to ' + raiseAmt + ' &middot; Hand #' + e.handNumber + ' &middot; ' + e.numPlayers + 'p &middot; ' + dateStr + allInTag + '</div>' +
           '</div>';
       }).join('');
     }

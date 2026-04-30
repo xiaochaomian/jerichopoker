@@ -450,6 +450,53 @@
     return ranges;
   }
 
+  // ── Extract river raises with hole cards + full board ────────────────
+  // Captures: hole cards (only if shown), the exact flop/turn/river,
+  // raise amount, all-in flag, table size, and hand metadata.
+  function extractRiverRaises(hand) {
+    const actions = Array.isArray(hand.actions) ? hand.actions : [];
+    const shows = Array.isArray(hand.shows) ? hand.shows : [];
+    const cc = Array.isArray(hand.communityCards) ? hand.communityCards : [];
+    const entries = [];
+
+    // Pull main-run board cards (first occurrence of each street; ignore second-run dupes)
+    let flop = '', turn = '', river = '';
+    for (const c of cc) {
+      if (!c) continue;
+      if (c.street === 'flop' && !flop) flop = c.cards;
+      else if (c.street === 'turn' && !turn) turn = c.cards;
+      else if (c.street === 'river' && !river) river = c.cards;
+    }
+    if (!river) return entries; // no river was dealt — nothing to capture
+
+    // Lookup hole cards by player id (only present if they showed at showdown)
+    const showLookup = {};
+    for (const s of shows) {
+      if (s && s.id) showLookup[s.id] = s.cards;
+    }
+
+    for (const a of actions) {
+      if (!a || a.phase !== 'river' || a.type !== 'raise') continue;
+      const cards = showLookup[a.id];
+      if (!cards) continue; // can't show a hand we don't know
+      entries.push({
+        name: a.name,
+        id: a.id,
+        cards: cards,
+        flop: flop,
+        turn: turn,
+        river: river,
+        raiseAmount: a.amount,
+        allIn: !!a.allIn,
+        numPlayers: hand.numPlayers,
+        handNumber: hand.number,
+        handId: hand.id,
+        date: hand.startTime,
+      });
+    }
+    return entries;
+  }
+
   // ── Master function: process all hands into per-player stats ─────────
   function computeAllStats(hands, existingStats) {
     // existingStats: { playerId: { name, ... stats } } — to merge with
@@ -472,12 +519,13 @@
       if (!Array.isArray(hand.collections)) hand.collections = [];
       if (!Array.isArray(hand.communityCards)) hand.communityCards = [];
 
-      const tableSize = hand.numPlayers > 7 ? 'full' : 'short';
+      const tableSize = hand.numPlayers >= 7 ? 'full' : 'short';
       const preflopAnalysis = analyzePreflopActions(hand);
       const aggression = computeAggression(hand);
       const cbetInfo = detectCbet(hand);
       const sdInfo = showdownInfo(hand);
       const rangeEntries = extract3bet4betRanges(hand);
+      const riverRaiseEntries = extractRiverRaises(hand);
 
       for (const player of hand.players) {
         const pid = player.id;
@@ -486,6 +534,10 @@
         }
         const ps = stats[pid];
         ps.name = player.name; // update name (may change)
+        // Backward-compat: ensure new arrays exist on stats loaded from older versions
+        if (!Array.isArray(ps.rangeHistory)) ps.rangeHistory = [];
+        if (!Array.isArray(ps.shownHands)) ps.shownHands = [];
+        if (!Array.isArray(ps.riverRaises)) ps.riverRaises = [];
         ps.processedHands.push(hand.id);
 
         // Select the correct table-size bucket
@@ -558,12 +610,22 @@
       for (const entry of rangeEntries) {
         const pid = entry.id;
         if (!stats[pid]) continue;
+        if (!Array.isArray(stats[pid].rangeHistory)) stats[pid].rangeHistory = [];
         stats[pid].rangeHistory.push(entry);
+      }
+
+      // River raises (with shown hole cards + full board)
+      for (const entry of riverRaiseEntries) {
+        const pid = entry.id;
+        if (!stats[pid]) continue;
+        if (!Array.isArray(stats[pid].riverRaises)) stats[pid].riverRaises = [];
+        stats[pid].riverRaises.push(entry);
       }
 
       // Track all shown hands (even non-3bet/4bet)
       for (const show of (hand.shows || [])) {
         if (!stats[show.id]) continue;
+        if (!Array.isArray(stats[show.id].shownHands)) stats[show.id].shownHands = [];
         stats[show.id].shownHands.push({
           cards: show.cards,
           handNumber: hand.number,
@@ -625,10 +687,11 @@
     return {
       name: name,
       id: id,
-      full: emptyBucket(),   // > 7 players
-      short: emptyBucket(),  // <= 7 players
+      full: emptyBucket(),   // 7+ players
+      short: emptyBucket(),  // 2-6 players
       rangeHistory: [],      // 3bet/4bet with shown cards
       shownHands: [],        // all shown hands
+      riverRaises: [],       // river raises with hole cards + full board
       processedHands: [],    // hand IDs we've already processed
     };
   }
@@ -798,6 +861,7 @@
     computeAggression,
     showdownInfo,
     extract3bet4betRanges,
+    extractRiverRaises,
   };
 
 })(window);
