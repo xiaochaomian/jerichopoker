@@ -1153,12 +1153,27 @@
       margin-bottom: 6px;
       border: 1px solid var(--border);
     }
+    .river-raise-entry .rr-row-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 3px;
+    }
     .river-raise-entry .rr-cards {
       font-weight: 700;
       color: var(--gold);
       font-size: 0.95rem;
-      margin-bottom: 3px;
     }
+    .rr-action-tag {
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      text-transform: uppercase;
+    }
+    .rr-action-tag.rr-bet { background: rgba(108,92,231,0.2); color: var(--accent2); }
+    .rr-action-tag.rr-raise { background: rgba(253,121,168,0.2); color: #fd79a8; }
     .river-raise-entry .rr-board {
       font-size: 0.85rem;
       color: var(--text);
@@ -1647,8 +1662,8 @@
               </div>
             </div>
 
-            <div class="stat-section-title">River Raises &mdash; Hand &amp; Board</div>
-            <p style="font-size:0.78rem;color:var(--text2);margin-bottom:10px;">Every river raise where the player showed their hole cards, paired with the exact board.</p>
+            <div class="stat-section-title">River Bets &amp; Raises &mdash; Hand &amp; Board</div>
+            <p style="font-size:0.78rem;color:var(--text2);margin-bottom:10px;">Every river bet or raise where the player's hole cards are known (shown at showdown or recoverable from the winning combination), paired with the exact board.</p>
             <div class="dual-table-views">
               <div class="dual-view-block">
                 <h4>Short Tables (2-6)</h4>
@@ -4126,9 +4141,16 @@
       el.innerHTML = filtered.map(function (e) {
         const dateStr = new Date(e.date).toLocaleDateString();
         const allInTag = e.allIn ? '<span class="all-in-tag">all-in</span>' : '';
-        const raiseAmt = (typeof e.raiseAmount === 'number') ? e.raiseAmount : '—';
+        const amt = (typeof e.raiseAmount === 'number') ? e.raiseAmount : '—';
+        const actionType = e.actionType === 'raise' ? 'raise' : 'bet';
+        const actionLabel = actionType === 'raise' ? 'Raise to ' + amt : 'Bet ' + amt;
+        const tagClass = actionType === 'raise' ? 'rr-action-tag rr-raise' : 'rr-action-tag rr-bet';
+        const tagText = actionType === 'raise' ? 'RAISE' : 'BET';
         return '<div class="river-raise-entry">' +
-          '<div class="rr-cards">' + e.cards + '</div>' +
+          '<div class="rr-row-top">' +
+            '<span class="rr-cards">' + e.cards + '</span>' +
+            '<span class="' + tagClass + '">' + tagText + '</span>' +
+          '</div>' +
           '<div class="rr-board">' +
             '<span class="rr-board-label">Board</span>' +
             (e.flop || '—') +
@@ -4137,7 +4159,7 @@
             '<span class="rr-board-sep">&middot;</span>' +
             (e.river || '—') +
           '</div>' +
-          '<div class="rr-meta">Raise to ' + raiseAmt + ' &middot; Hand #' + e.handNumber + ' &middot; ' + e.numPlayers + 'p &middot; ' + dateStr + allInTag + '</div>' +
+          '<div class="rr-meta">' + actionLabel + ' &middot; Hand #' + e.handNumber + ' &middot; ' + e.numPlayers + 'p &middot; ' + dateStr + allInTag + '</div>' +
           '</div>';
       }).join('');
     }

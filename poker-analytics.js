@@ -194,10 +194,14 @@
       // Collections
       if ((m = e.match(RE.collected))) {
         let handStrength = '';
+        let combination = '';
         const extra = m[4];
         const hsMatch = extra.match(/with (.+?)(?:\s+on the second run)?\s*(?:\(combination: ([^\)]+)\))?$/);
-        if (hsMatch) handStrength = hsMatch[1].trim();
-        current.collections.push({ name: m[1], id: m[2], amount: parseFloat(m[3]), handStrength });
+        if (hsMatch) {
+          handStrength = (hsMatch[1] || '').trim();
+          combination = (hsMatch[2] || '').trim();
+        }
+        current.collections.push({ name: m[1], id: m[2], amount: parseFloat(m[3]), handStrength, combination });
         continue;
       }
     }
@@ -450,12 +454,19 @@
     return ranges;
   }
 
-  // ── Extract river raises with hole cards + full board ────────────────
-  // Captures: hole cards (only if shown), the exact flop/turn/river,
-  // raise amount, all-in flag, table size, and hand metadata.
+  // ── Extract river aggression with hole cards + full board ────────────
+  // Captures every river BET or RAISE (any voluntary aggressive action on
+  // the river) where we know the player's hole cards. Hole cards come from
+  // either (a) an explicit `shows` line, or (b) the winning `collected`
+  // line (PokerNow includes the 5-card combination — we can derive hole
+  // cards by subtracting the 5 board cards).
+  // In poker, the first aggressive action on a street is a "bet" and any
+  // subsequent re-aggression is a "raise" — so capturing only `type ===
+  // 'raise'` would miss the most common form of river pressure.
   function extractRiverRaises(hand) {
     const actions = Array.isArray(hand.actions) ? hand.actions : [];
     const shows = Array.isArray(hand.shows) ? hand.shows : [];
+    const collections = Array.isArray(hand.collections) ? hand.collections : [];
     const cc = Array.isArray(hand.communityCards) ? hand.communityCards : [];
     const entries = [];
 
@@ -469,14 +480,37 @@
     }
     if (!river) return entries; // no river was dealt — nothing to capture
 
-    // Lookup hole cards by player id (only present if they showed at showdown)
+    // Build lookup of hole cards by player id from explicit shows
     const showLookup = {};
     for (const s of shows) {
-      if (s && s.id) showLookup[s.id] = s.cards;
+      if (s && s.id && s.cards) showLookup[s.id] = s.cards;
+    }
+
+    // Fallback: derive hole cards from collected-pot combinations.
+    // PokerNow logs `collected ... (combination: c1, c2, c3, c4, c5)` where
+    // the combination is the 5-card showdown hand. By removing the (up to
+    // 5) board cards from that set, the remaining 1–2 cards are the hole
+    // cards used in the combo. (Other hole card was unused — that's fine.)
+    const boardSet = new Set();
+    [flop, turn, river].forEach(function (s) {
+      if (!s) return;
+      s.split(',').forEach(function (c) {
+        const t = c.trim();
+        if (t) boardSet.add(t);
+      });
+    });
+    for (const col of collections) {
+      if (!col || !col.id || showLookup[col.id]) continue;
+      const combo = col.combination || '';
+      if (!combo) continue;
+      const comboCards = combo.split(',').map(function (c) { return c.trim(); }).filter(Boolean);
+      const holes = comboCards.filter(function (c) { return !boardSet.has(c); });
+      if (holes.length > 0) showLookup[col.id] = holes.join(', ');
     }
 
     for (const a of actions) {
-      if (!a || a.phase !== 'river' || a.type !== 'raise') continue;
+      if (!a || a.phase !== 'river') continue;
+      if (a.type !== 'bet' && a.type !== 'raise') continue;
       const cards = showLookup[a.id];
       if (!cards) continue; // can't show a hand we don't know
       entries.push({
@@ -486,6 +520,7 @@
         flop: flop,
         turn: turn,
         river: river,
+        actionType: a.type,           // 'bet' (first aggression) | 'raise' (re-aggression)
         raiseAmount: a.amount,
         allIn: !!a.allIn,
         numPlayers: hand.numPlayers,
