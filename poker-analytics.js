@@ -21,12 +21,16 @@
     raises: /^"(.+?) @ ([a-zA-Z0-9_\-]+)" raises to ([\d.]+)(.*)$/,
     checks: /^"(.+?) @ ([a-zA-Z0-9_\-]+)" checks$/,
     folds: /^"(.+?) @ ([a-zA-Z0-9_\-]+)" folds$/,
-    flop: /^Flop:\s+\[([^\]]+)\]$/,
-    turn: /^Turn: .+ \[([^\]]+)\]$/,
-    river: /^River: .+ \[([^\]]+)\]$/,
-    flopSecond: /^Flop \(second run\):\s+\[([^\]]+)\]$/,
-    turnSecond: /^Turn \(second run\): .+ \[([^\]]+)\]$/,
-    riverSecond: /^River \(second run\): .+ \[([^\]]+)\]$/,
+    // Community-card lines — kept permissive: match any line that starts
+    // with the street name (case-insensitive) and contains a bracketed list
+    // of cards. Tolerates "Flop:  [...]", "flop [...]", "Flop (second run): ...",
+    // and trailing text after the bracket.
+    flop: /^Flop\b[^\[]*\[([^\]]+)\]/i,
+    turn: /^Turn\b[^\[]*\[([^\]]+)\]/i,
+    river: /^River\b[^\[]*\[([^\]]+)\]/i,
+    flopSecond: /^Flop \(second run\)\b[^\[]*\[([^\]]+)\]/i,
+    turnSecond: /^Turn \(second run\)\b[^\[]*\[([^\]]+)\]/i,
+    riverSecond: /^River \(second run\)\b[^\[]*\[([^\]]+)\]/i,
     shows: /^"(.+?) @ ([a-zA-Z0-9_\-]+)" shows a (.+)\.$/,
     collected: /^"(.+?) @ ([a-zA-Z0-9_\-]+)" collected ([\d.]+) from pot(.*)$/,
     uncalled: /^Uncalled bet of ([\d.]+) returned to "(.+?) @ ([a-zA-Z0-9_\-]+)"$/,

@@ -722,6 +722,24 @@
       margin-bottom: 16px;
     }
 
+    .adj-form .adj-label {
+      font-size: 0.78rem;
+      color: var(--text2);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .adj-entry.adj-pair .adj-pair-side {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .adj-entry.adj-pair .adj-pair-arrow {
+      color: var(--text2);
+      font-size: 0.9rem;
+    }
+
     .adj-form select,
     .adj-form input {
       padding: 8px 12px;
@@ -1573,13 +1591,12 @@
         <!-- Manual Adjustments (admin only) -->
         <div id="adjustmentsSection" class="adjustments-section hidden">
           <h3>Manual Adjustments</h3>
-          <p class="section-desc">Increase or decrease a player's balance to account for partial payments, corrections, or other edge cases.</p>
+          <p class="section-desc">Transfer balance from one player to another. The "up" player's balance increases (debt reduced) and the "down" player's balance decreases (debt added) by the same amount, so totals stay balanced.</p>
           <div class="adj-form">
-            <select id="adjPlayer"></select>
-            <select id="adjDirection">
-              <option value="decrease">Reduce debt</option>
-              <option value="increase">Add debt</option>
-            </select>
+            <span class="adj-label">Up:</span>
+            <select id="adjPlayerUp"></select>
+            <span class="adj-label">Down:</span>
+            <select id="adjPlayerDown"></select>
             <input type="number" id="adjAmount" placeholder="$ amount" min="0.01" step="0.01">
             <input type="text" id="adjReason" placeholder="Reason (optional)">
             <button class="btn btn-primary btn-small" onclick="addManualAdjustment()">Apply</button>
@@ -3302,32 +3319,51 @@
     }
 
     // ========== MANUAL ADJUSTMENTS ==========
+    // Adjustments are zero-sum: each Apply creates two linked entries (one
+    // player goes up, the other goes down by the same amount) sharing a
+    // pairId. Deleting either side removes both. Pre-existing single-sided
+    // entries (no pairId) are still supported for backward compatibility.
     function addManualAdjustment() {
       if (!state.isAdmin) return;
-      const player = document.getElementById('adjPlayer').value;
-      const direction = document.getElementById('adjDirection').value;
+      const playerUp = document.getElementById('adjPlayerUp').value;
+      const playerDown = document.getElementById('adjPlayerDown').value;
       const dollarAmount = parseFloat(document.getElementById('adjAmount').value);
       const reason = document.getElementById('adjReason').value.trim();
 
-      if (!player) { alert('Please select a player.'); return; }
+      if (!playerUp) { alert('Please select the player going up.'); return; }
+      if (!playerDown) { alert('Please select the player going down.'); return; }
+      if (playerUp === playerDown) { alert('The "up" and "down" players must be different.'); return; }
       if (!dollarAmount || dollarAmount <= 0) { alert('Please enter a valid positive dollar amount.'); return; }
 
-      // Convert dollars to cents; direction determines sign
-      // "decrease debt" = positive (moves balance toward 0 / into positive)
-      // "increase debt" = negative (moves balance further negative)
       const cents = Math.round(dollarAmount * 100);
-      const amount = direction === 'decrease' ? cents : -cents;
+      const pairId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      const date = new Date().toISOString();
+      const adjReason = reason || ('Transfer: ' + playerDown + ' → ' + playerUp);
 
       if (!state.manualAdjustments) state.manualAdjustments = [];
-      const adjReason = reason || (direction === 'decrease' ? 'Debt reduced' : 'Debt increased');
       state.manualAdjustments.push({
-        player,
-        amount,
+        player: playerUp,
+        amount: cents,            // up = positive (debt reduced / credit added)
         reason: adjReason,
-        date: new Date().toISOString(),
+        date: date,
+        pairId: pairId,
+        counterpart: playerDown,
+      });
+      state.manualAdjustments.push({
+        player: playerDown,
+        amount: -cents,           // down = negative (debt increased)
+        reason: adjReason,
+        date: date,
+        pairId: pairId,
+        counterpart: playerUp,
       });
 
-      logPaymentEvent('adjustment_add', { player, amount, reason: adjReason, direction });
+      logPaymentEvent('adjustment_add', {
+        player: playerUp + ' / ' + playerDown,
+        amount: cents,
+        reason: adjReason,
+        direction: 'transfer',
+      });
       saveState();
       document.getElementById('adjAmount').value = '';
       document.getElementById('adjReason').value = '';
@@ -3338,10 +3374,21 @@
       if (!state.isAdmin) return;
       if (!confirm('Remove this adjustment?')) return;
       const removed = state.manualAdjustments[index];
-      if (removed) {
+      if (!removed) return;
+
+      if (removed.pairId) {
+        // Paired adjustment: remove BOTH sides so totals stay balanced
+        const matching = state.manualAdjustments.filter(function (a) { return a.pairId === removed.pairId; });
+        state.manualAdjustments = state.manualAdjustments.filter(function (a) { return a.pairId !== removed.pairId; });
+        const summary = matching
+          .map(function (a) { return a.player + (a.amount > 0 ? ' +$' : ' -$') + (Math.abs(a.amount) / 100).toFixed(2); })
+          .join(' / ');
+        logPaymentEvent('adjustment_delete', { player: summary, amount: Math.abs(removed.amount), reason: removed.reason });
+      } else {
+        // Legacy single-sided adjustment
+        state.manualAdjustments.splice(index, 1);
         logPaymentEvent('adjustment_delete', { player: removed.player, amount: removed.amount, reason: removed.reason });
       }
-      state.manualAdjustments.splice(index, 1);
       saveState();
       renderPayments();
     }
@@ -3356,13 +3403,21 @@
       }
       section.classList.remove('hidden');
 
-      // Populate player dropdown
-      const select = document.getElementById('adjPlayer');
-      const currentVal = select.value;
-      select.innerHTML = '<option value="">Select player...</option>' +
-        state.players.map(p => '<option value="' + p + '"' + (p === currentVal ? ' selected' : '') + '>' + p + '</option>').join('');
+      // Populate both player dropdowns
+      const upSel = document.getElementById('adjPlayerUp');
+      const downSel = document.getElementById('adjPlayerDown');
+      const upVal = upSel.value;
+      const downVal = downSel.value;
+      const optionsHtml = function (selectedVal, placeholder) {
+        return '<option value="">' + placeholder + '</option>' +
+          state.players.map(function (p) {
+            return '<option value="' + p + '"' + (p === selectedVal ? ' selected' : '') + '>' + p + '</option>';
+          }).join('');
+      };
+      upSel.innerHTML = optionsHtml(upVal, 'Up — receives credit');
+      downSel.innerHTML = optionsHtml(downVal, 'Down — takes on debt');
 
-      // Render adjustment log
+      // Render adjustment log: group paired entries, keep singletons individual
       const log = document.getElementById('adjLog');
       const adjs = state.manualAdjustments || [];
       if (!adjs.length) {
@@ -3370,19 +3425,50 @@
         return;
       }
 
-      log.innerHTML = adjs.map((adj, i) => {
+      const seen = new Set();
+      const grouped = [];
+      adjs.forEach(function (adj, i) {
+        if (seen.has(i)) return;
+        if (adj.pairId) {
+          const partnerIdx = adjs.findIndex(function (a, j) { return j !== i && a && a.pairId === adj.pairId; });
+          if (partnerIdx !== -1) {
+            seen.add(i); seen.add(partnerIdx);
+            const upAdj = adj.amount >= 0 ? adj : adjs[partnerIdx];
+            const downAdj = adj.amount >= 0 ? adjs[partnerIdx] : adj;
+            grouped.push({ pair: { up: upAdj, down: downAdj }, indexes: [i, partnerIdx] });
+            return;
+          }
+        }
+        seen.add(i);
+        grouped.push({ single: adj, index: i });
+      });
+
+      log.innerHTML = grouped.reverse().map(function (item) {
+        const refAdj = item.pair ? item.pair.up : item.single;
+        const dateStr = new Date(refAdj.date).toLocaleDateString();
+        if (item.pair) {
+          const dollars = (Math.abs(item.pair.up.amount) / 100).toFixed(2);
+          return '<div class="adj-entry adj-pair">' +
+            '<span class="adj-pair-side"><span class="adj-player">' + item.pair.up.player + '</span><span class="adj-amount positive">+$' + dollars + '</span></span>' +
+            '<span class="adj-pair-arrow">&harr;</span>' +
+            '<span class="adj-pair-side"><span class="adj-player">' + item.pair.down.player + '</span><span class="adj-amount negative">-$' + dollars + '</span></span>' +
+            '<span class="adj-reason">' + (refAdj.reason || '') + '</span>' +
+            '<span class="adj-date">' + dateStr + '</span>' +
+            '<button class="adj-delete" onclick="deleteManualAdjustment(' + item.indexes[0] + ')" title="Remove adjustment">&times;</button>' +
+            '</div>';
+        }
+        const adj = item.single;
         const isPositive = adj.amount > 0;
-        const dollars = Math.abs(adj.amount) / 100;
-        const dateStr = new Date(adj.date).toLocaleDateString();
+        const dollars = (Math.abs(adj.amount) / 100).toFixed(2);
         return '<div class="adj-entry">' +
           '<span class="adj-player">' + adj.player + '</span>' +
           '<span class="adj-amount ' + (isPositive ? 'positive' : 'negative') + '">' +
-            (isPositive ? '+' : '-') + '$' + dollars.toFixed(2) + '</span>' +
+            (isPositive ? '+' : '-') + '$' + dollars + '</span>' +
           '<span class="adj-reason">' + (adj.reason || '') + '</span>' +
           '<span class="adj-date">' + dateStr + '</span>' +
-          '<button class="adj-delete" onclick="deleteManualAdjustment(' + i + ')" title="Remove adjustment">&times;</button>' +
+          '<button class="adj-delete" onclick="deleteManualAdjustment(' + item.index + ')" title="Remove adjustment">&times;</button>' +
           '</div>';
-      }).reverse().join('');
+      }).join('');
     }
 
     // ========== EDIT GAME ==========
@@ -4135,7 +4221,7 @@
         return rangeMatchesFilter(e.numPlayers, tsFilter);
       });
       if (!filtered.length) {
-        el.innerHTML = '<p style="color:var(--text2);font-size:0.82rem;">No river raises with shown hole cards at this table size yet.</p>';
+        el.innerHTML = '<p style="color:var(--text2);font-size:0.82rem;">No river bets or raises with known hole cards at this table size yet.</p>';
         return;
       }
       el.innerHTML = filtered.map(function (e) {
