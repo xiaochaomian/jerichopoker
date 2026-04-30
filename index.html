@@ -1662,10 +1662,6 @@
             <button class="btn btn-primary btn-small" onclick="changeOwnerPin()">Update</button>
           </div>
         </div>
-        <h3 style="font-size:0.95rem;margin-bottom:12px;color:var(--text2);">Ledger Balance Check</h3>
-        <div id="ledgerBalanceBlock" style="padding:12px;background:var(--surface2);border-radius:var(--radius);margin-bottom:16px;font-size:0.85rem;line-height:1.5;">
-          <p style="color:var(--text2);margin:0;">No games loaded.</p>
-        </div>
         <h3 style="font-size:0.95rem;margin-bottom:12px;color:var(--text2);">Data Management</h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-secondary" onclick="exportData()">Export JSON</button>
@@ -1696,6 +1692,10 @@
         <h3 style="font-size:0.95rem;margin-bottom:8px;color:var(--text2);">Rake per Game</h3>
         <div id="rakeChart" style="width:100%;overflow-x:auto;"></div>
         <div id="rakeBreakdown" style="margin-top:12px;"></div>
+        <h3 style="font-size:0.95rem;margin:20px 0 8px 0;color:var(--text2);">Ledger Balance Check</h3>
+        <div id="ledgerBalanceBlock" style="padding:12px;background:var(--surface2);border-radius:var(--radius);font-size:0.85rem;line-height:1.5;">
+          <p style="color:var(--text2);margin:0;">No games loaded.</p>
+        </div>
       </div>
     </div>
   </div>
@@ -1984,10 +1984,10 @@
       if (state.isAdmin) {
         renderPlayerList();
         updateRakeDisplay();
-        updateLedgerBalanceCheck();
       }
       if (state.isOwner) {
         renderOwnerDashboard();
+        updateLedgerBalanceCheck();
       }
     }
 
@@ -2212,16 +2212,13 @@
         badge.textContent = 'Admin'; badge.className = 'mode-badge admin';
         btn.textContent = 'Logout';
         uploadTab.style.display = '';
-        if (analyticsTab) analyticsTab.style.display = 'none';
+        if (analyticsTab) analyticsTab.style.display = '';
         if (managePlayers) managePlayers.style.display = '';
         if (dataManagement) dataManagement.style.display = '';
         if (settleActions) settleActions.classList.remove('hidden');
         if (ownerDashboard) ownerDashboard.style.display = 'none';
         if (ownerPinSection) ownerPinSection.style.display = 'none';
         renderPlayerList();
-        if (currentTab === 'analytics') {
-          document.querySelector('.tab[data-tab="dashboard"]').click();
-        }
       } else {
         badge.textContent = 'Viewer'; badge.className = 'mode-badge viewer';
         btn.textContent = 'Admin Login';
