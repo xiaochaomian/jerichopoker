@@ -832,6 +832,155 @@
       margin-top: 8px;
     }
 
+    .rake-schedule-section { margin-top: 24px; }
+    .rake-schedule-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 0 6px 0;
+    }
+    .rake-schedule-header h3 {
+      font-size: 0.95rem;
+      color: var(--text2);
+      margin: 0;
+    }
+    .rake-schedule-desc {
+      font-size: 0.78rem;
+      color: var(--text2);
+      margin-bottom: 12px;
+      line-height: 1.4;
+    }
+    .rake-schedule {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      margin-bottom: 8px;
+    }
+    .rake-schedule.editing {
+      border-color: var(--accent);
+    }
+    .rake-schedule-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+    .rake-schedule-eff {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .rake-schedule-eff .label {
+      color: var(--text2);
+      font-weight: 500;
+      margin-right: 4px;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .rake-schedule-actions {
+      display: flex;
+      gap: 6px;
+    }
+    .rake-schedule-actions .btn {
+      padding: 4px 10px;
+      font-size: 0.75rem;
+    }
+    .rake-bracket-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .rake-bracket-row-readonly {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.85rem;
+      padding: 4px 0;
+    }
+    .rake-bracket-row-readonly .range {
+      min-width: 140px;
+      color: var(--text);
+    }
+    .rake-bracket-row-readonly .arrow {
+      color: var(--text2);
+    }
+    .rake-bracket-row-readonly .rake-amount {
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .rake-bracket-row-edit {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .rake-bracket-row-edit input {
+      width: 80px;
+      padding: 5px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 0.8rem;
+    }
+    .rake-bracket-row-edit input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .rake-bracket-row-edit .label {
+      font-size: 0.72rem;
+      color: var(--text2);
+    }
+    .rake-bracket-row-edit .remove-bracket {
+      background: transparent;
+      border: none;
+      color: var(--red);
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 0 4px;
+      opacity: 0.6;
+    }
+    .rake-bracket-row-edit .remove-bracket:hover { opacity: 1; }
+    .rake-add-bracket {
+      background: transparent;
+      border: 1px dashed var(--border);
+      color: var(--text2);
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.78rem;
+      margin-top: 4px;
+      align-self: flex-start;
+    }
+    .rake-add-bracket:hover { color: var(--text); border-color: var(--accent); }
+    .rake-edit-effective {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .rake-edit-effective input {
+      padding: 5px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 0.8rem;
+    }
+    .rake-schedule-empty {
+      font-size: 0.82rem;
+      color: var(--text2);
+      padding: 12px;
+      text-align: center;
+      background: var(--surface2);
+      border-radius: var(--radius);
+      border: 1px dashed var(--border);
+    }
+
     .player-tag {
       display: inline-block;
       padding: 2px 8px;
@@ -1821,6 +1970,15 @@
         <div id="ledgerBalanceBlock" style="padding:12px;background:var(--surface2);border-radius:var(--radius);font-size:0.85rem;line-height:1.5;">
           <p style="color:var(--text2);margin:0;">No games loaded.</p>
         </div>
+
+        <div class="rake-schedule-section">
+          <div class="rake-schedule-header">
+            <h3>Rake Schedule</h3>
+            <button class="btn btn-primary btn-small" onclick="addNewRakeSchedule()">+ New Schedule</button>
+          </div>
+          <p class="rake-schedule-desc">Each schedule applies to games on or after its effective date. Games before any schedule's effective date keep their original rake (the legacy formula). Schedules don't change historical results.</p>
+          <div id="rakeSchedulesList"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1895,42 +2053,82 @@
     ];
     const RAKE_HOST = "Michael Jiao";
 
-    // Smart rounding per game:
-    // - Winners: floor to nearest dollar, then take the larger of:
-    //     a) Round down to nearest $5 (if >= $100)
-    //     b) Flat extra: <$50 = $1, $50-$99 = $2
-    //   whichever removes more
-    // - Losers: floor to nearest dollar (toward zero)
-    // - Host absorbs the difference to keep game zero-sum
-    function getGameResultsWithRake(results) {
+    // Find the rake schedule active at gameDate. Returns null if no
+    // schedule is configured for that point in time — the caller should
+    // then fall back to the legacy hardcoded formula so historical games
+    // produce identical results to before this feature existed.
+    function getActiveRakeSchedule(gameDate) {
+      const schedules = state.rakeSchedules || [];
+      if (!schedules.length || !gameDate) return null;
+      const gameTime = new Date(gameDate).getTime();
+      if (isNaN(gameTime)) return null;
+      let best = null, bestTime = -Infinity;
+      for (const s of schedules) {
+        if (!s || !s.effectiveFrom) continue;
+        const t = new Date(s.effectiveFrom).getTime();
+        if (isNaN(t) || t > gameTime) continue;
+        if (t > bestTime) { bestTime = t; best = s; }
+      }
+      return best;
+    }
+
+    // Apply a configured bracket schedule to a single winner's net (cents).
+    // Floors to the nearest dollar, then subtracts the rake of the bracket
+    // whose [minNet, maxNet) covers the floored amount. If no bracket
+    // matches (e.g. the schedule has gaps), only the dollar-floor is applied.
+    function applyRakeBracketsToWinner(net, brackets) {
+      const floored = Math.floor(net / 100) * 100;
+      if (!brackets || !brackets.length) return floored;
+      for (const b of brackets) {
+        if (!b) continue;
+        const lo = (typeof b.minNet === 'number') ? b.minNet : 0;
+        const hi = (b.maxNet === null || b.maxNet === undefined) ? Infinity : b.maxNet;
+        if (floored >= lo && floored < hi) {
+          const rake = (typeof b.rake === 'number') ? b.rake : 0;
+          return floored - rake;
+        }
+      }
+      return floored;
+    }
+
+    // Per-game rake calculation:
+    // - If a configured schedule is active for the game's date, use its
+    //   brackets to determine winners' rake.
+    // - Otherwise, fall back to the legacy hardcoded formula:
+    //     Winners: floor to nearest dollar, then take whichever removes more
+    //     between (a) round down to nearest $5 if >= $100, (b) flat extra
+    //     <$50=$1, $50-99=$2, $100+=$3.
+    //     Losers: floor toward zero.
+    //     Host absorbs the difference to keep the game zero-sum.
+    function getGameResultsWithRake(results, gameDate) {
       const adj = {};
       let othersTotal = 0;
+      const schedule = getActiveRakeSchedule(gameDate);
 
       Object.entries(results).forEach(([player, net]) => {
         if (player === RAKE_HOST) return;
 
         if (net > 0) {
-          // Winners: floor to nearest dollar first
-          let floored = Math.floor(net / 100) * 100;
-
-          // Option A: round down to nearest $5 (only meaningful >= $100)
-          let roundTo5 = Math.floor(net / 500) * 500;
-
-          // Option B: flat extra on top of dollar floor
-          let flatExtra = 0;
-          if (floored >= 10000) flatExtra = 300;       // $100+ → $3 extra
-          else if (floored >= 5000) flatExtra = 200;   // $50+ → $2 extra
-          else flatExtra = 100;                         // under $50 → $1 extra
-          let withFlat = floored - flatExtra;
-
-          // Take whichever reduces more (lower value for the winner)
-          if (floored >= 10000) {
-            adj[player] = Math.min(roundTo5, withFlat);
+          if (schedule) {
+            // Configured schedule applies — use its brackets
+            adj[player] = applyRakeBracketsToWinner(net, schedule.brackets);
           } else {
-            adj[player] = withFlat;
+            // Legacy hardcoded formula (unchanged)
+            let floored = Math.floor(net / 100) * 100;
+            let roundTo5 = Math.floor(net / 500) * 500;
+            let flatExtra = 0;
+            if (floored >= 10000) flatExtra = 300;
+            else if (floored >= 5000) flatExtra = 200;
+            else flatExtra = 100;
+            let withFlat = floored - flatExtra;
+            if (floored >= 10000) {
+              adj[player] = Math.min(roundTo5, withFlat);
+            } else {
+              adj[player] = withFlat;
+            }
           }
         } else {
-          // Losers: floor toward zero (e.g. -$25.50 → -$25)
+          // Losers: floor toward zero (e.g. -$25.50 → -$25). Same in both modes.
           adj[player] = Math.ceil(net / 100) * 100;
         }
 
@@ -1948,7 +2146,7 @@
       let total = 0;
       state.games.forEach(g => {
         const hostRaw = g.results[RAKE_HOST] || 0;
-        const adj = getGameResultsWithRake(g.results);
+        const adj = getGameResultsWithRake(g.results, g.date);
         const hostAdj = adj[RAKE_HOST] || 0;
         total += (hostAdj - hostRaw);
       });
@@ -1968,6 +2166,10 @@
       paymentHistory: [],   // chronological log of all payment events for interpretability
       playerAnalytics: {},  // derived from handLogUploads, never stored directly
       handLogUploads: [],   // { id, filename, date, csvText, mapping } — stored in separate Firebase path
+      rakeSchedules: [],    // [{ id, effectiveFrom (ISO), brackets: [{ minNet, maxNet|null, rake }] (cents) }]
+                            // Each schedule applies to games on/after its effectiveFrom; games
+                            // before any schedule fall back to the hardcoded legacy formula so
+                            // historical results never change retroactively.
     };
 
     let currentTab = 'dashboard';
@@ -1988,6 +2190,7 @@
           state.nickMemory = data.nickMemory || {};
           state.manualAdjustments = data.manualAdjustments || [];
           state.paymentHistory = data.paymentHistory || [];
+          state.rakeSchedules = data.rakeSchedules || [];
         }
         firebaseReady = true;
         updateSyncBadge(true);
@@ -2023,6 +2226,7 @@
         nickMemory: state.nickMemory,
         manualAdjustments: state.manualAdjustments,
         paymentHistory: state.paymentHistory,
+        rakeSchedules: state.rakeSchedules || [],
       };
       // Save to Firebase
       dbRef('state').set(payload).catch((err) => {
@@ -2085,6 +2289,7 @@
           state.nickMemory = parsed.nickMemory || {};
           state.manualAdjustments = parsed.manualAdjustments || [];
           state.paymentHistory = parsed.paymentHistory || [];
+          state.rakeSchedules = parsed.rakeSchedules || [];
         }
       } catch (e) { }
       loadAnalyticsFromLocalStorage();
@@ -2272,13 +2477,278 @@
       alert('Owner PIN updated!');
     }
 
+    // ========== RAKE SCHEDULE EDITOR (OWNER-ONLY) ==========
+    let draftRakeSchedule = null;            // unsaved newly-added schedule
+    let editingScheduleIds = new Set();      // existing schedule IDs in edit mode
+
+    function dollarsToCents(v) {
+      if (v === '' || v === null || v === undefined) return null;
+      const n = parseFloat(v);
+      if (isNaN(n)) return null;
+      return Math.round(n * 100);
+    }
+    function centsToDollarsStr(c) {
+      if (c === null || c === undefined) return '';
+      return (c / 100).toFixed(2);
+    }
+    function isoToDatetimeLocal(iso) {
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      const pad = (n) => String(n).padStart(2, '0');
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+        'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+
+    function defaultBrackets() {
+      // Mirrors the legacy hardcoded formula's flat tiers as a sensible starting point
+      return [
+        { minNet: 0,     maxNet: 5000,  rake: 100 },  // $0–$50 → $1
+        { minNet: 5000,  maxNet: 10000, rake: 200 },  // $50–$100 → $2
+        { minNet: 10000, maxNet: null,  rake: 300 },  // $100+ → $3
+      ];
+    }
+
+    function addNewRakeSchedule() {
+      if (!state.isOwner) return;
+      if (draftRakeSchedule) {
+        // Already a draft — just scroll into view
+        const el = document.querySelector('[data-schedule-id="' + draftRakeSchedule.id + '"]');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        return;
+      }
+      // Seed brackets from the most recent existing schedule, or defaults if none
+      const existing = (state.rakeSchedules || []).slice().sort(function (a, b) {
+        return new Date(b.effectiveFrom).getTime() - new Date(a.effectiveFrom).getTime();
+      });
+      const seedBrackets = existing.length ? JSON.parse(JSON.stringify(existing[0].brackets || [])) : defaultBrackets();
+      draftRakeSchedule = {
+        id: 'draft-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        effectiveFrom: new Date().toISOString(),
+        brackets: seedBrackets,
+        isDraft: true,
+      };
+      renderRakeSchedules();
+    }
+
+    function editRakeSchedule(id) {
+      if (!state.isOwner) return;
+      editingScheduleIds.add(id);
+      renderRakeSchedules();
+    }
+
+    function cancelEditRakeSchedule(id) {
+      if (draftRakeSchedule && draftRakeSchedule.id === id) {
+        draftRakeSchedule = null;
+      } else {
+        editingScheduleIds.delete(id);
+      }
+      renderRakeSchedules();
+    }
+
+    function deleteRakeSchedule(id) {
+      if (!state.isOwner) return;
+      if (!confirm('Delete this rake schedule? Games on/after its effective date will fall back to the previous active schedule (or the legacy formula if none).')) return;
+      state.rakeSchedules = (state.rakeSchedules || []).filter(function (s) { return s.id !== id; });
+      editingScheduleIds.delete(id);
+      saveState();
+      renderPayments();           // recompute balances since rake changed
+      renderRakeSchedules();
+      renderOwnerDashboard();     // refresh totals/charts
+    }
+
+    function readBracketsFromCard(cardEl) {
+      const rows = cardEl.querySelectorAll('.rake-bracket-row-edit');
+      const out = [];
+      rows.forEach(function (row) {
+        const minStr = row.querySelector('[data-field="min"]').value.trim();
+        const maxStr = row.querySelector('[data-field="max"]').value.trim();
+        const rakeStr = row.querySelector('[data-field="rake"]').value.trim();
+        const min = minStr === '' ? 0 : dollarsToCents(minStr);
+        const max = maxStr === '' ? null : dollarsToCents(maxStr);
+        const rake = rakeStr === '' ? 0 : dollarsToCents(rakeStr);
+        out.push({ minNet: min === null ? 0 : min, maxNet: max, rake: rake === null ? 0 : rake });
+      });
+      return out;
+    }
+
+    function saveRakeSchedule(id) {
+      if (!state.isOwner) return;
+      const cardEl = document.querySelector('[data-schedule-id="' + id + '"]');
+      if (!cardEl) return;
+      const effInput = cardEl.querySelector('[data-field="effective"]');
+      const effVal = effInput ? effInput.value : '';
+      if (!effVal) { alert('Please pick an effective date/time.'); return; }
+      const effISO = new Date(effVal).toISOString();
+
+      const brackets = readBracketsFromCard(cardEl);
+      // Validation: each bracket's max (if set) must be > min, rake >= 0
+      for (const b of brackets) {
+        if (b.maxNet !== null && b.maxNet <= b.minNet) {
+          alert('Each bracket must have Max greater than Min (or leave Max blank for "and up").');
+          return;
+        }
+        if (b.rake < 0) { alert('Rake amounts must be zero or positive.'); return; }
+      }
+      // Sort by min ascending for predictable evaluation
+      brackets.sort(function (a, b) { return a.minNet - b.minNet; });
+
+      if (draftRakeSchedule && draftRakeSchedule.id === id) {
+        // New schedule — assign a permanent id and persist
+        const perm = {
+          id: 's-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          effectiveFrom: effISO,
+          brackets: brackets,
+        };
+        if (!Array.isArray(state.rakeSchedules)) state.rakeSchedules = [];
+        state.rakeSchedules.push(perm);
+        draftRakeSchedule = null;
+      } else {
+        const idx = (state.rakeSchedules || []).findIndex(function (s) { return s.id === id; });
+        if (idx === -1) return;
+        state.rakeSchedules[idx] = {
+          id: id,
+          effectiveFrom: effISO,
+          brackets: brackets,
+        };
+        editingScheduleIds.delete(id);
+      }
+      saveState();
+      renderPayments();
+      renderRakeSchedules();
+      renderOwnerDashboard();
+      showToast('Rake schedule saved');
+    }
+
+    function addBracketRow(scheduleId) {
+      const cardEl = document.querySelector('[data-schedule-id="' + scheduleId + '"]');
+      if (!cardEl) return;
+      const list = cardEl.querySelector('.rake-bracket-list');
+      const addBtn = cardEl.querySelector('.rake-add-bracket');
+      list.insertBefore(buildBracketEditRow({ minNet: 0, maxNet: null, rake: 0 }), addBtn);
+    }
+
+    function removeBracketRow(btn) {
+      const row = btn.closest('.rake-bracket-row-edit');
+      if (row) row.remove();
+    }
+
+    function buildBracketEditRow(bracket) {
+      const wrap = document.createElement('div');
+      wrap.className = 'rake-bracket-row-edit';
+      wrap.innerHTML =
+        '<span class="label">Min $</span>' +
+        '<input type="number" min="0" step="0.01" data-field="min" value="' + centsToDollarsStr(bracket.minNet || 0) + '">' +
+        '<span class="label">Max $</span>' +
+        '<input type="number" min="0" step="0.01" data-field="max" placeholder="and up" value="' + (bracket.maxNet === null || bracket.maxNet === undefined ? '' : centsToDollarsStr(bracket.maxNet)) + '">' +
+        '<span class="label">Rake $</span>' +
+        '<input type="number" min="0" step="0.01" data-field="rake" value="' + centsToDollarsStr(bracket.rake || 0) + '">' +
+        '<button type="button" class="remove-bracket" onclick="removeBracketRow(this)" title="Remove bracket">&times;</button>';
+      return wrap;
+    }
+
+    function renderRakeSchedules() {
+      const listEl = document.getElementById('rakeSchedulesList');
+      if (!listEl) return;
+
+      // Collect schedules + draft (if any) sorted by effectiveFrom DESC
+      const all = (state.rakeSchedules || []).slice();
+      if (draftRakeSchedule) all.push(draftRakeSchedule);
+      all.sort(function (a, b) {
+        return new Date(b.effectiveFrom).getTime() - new Date(a.effectiveFrom).getTime();
+      });
+
+      if (!all.length) {
+        listEl.innerHTML = '<div class="rake-schedule-empty">No rake schedules configured. The legacy formula is in effect for all games. Click "+ New Schedule" to start customizing.</div>';
+        return;
+      }
+
+      listEl.innerHTML = '';
+      all.forEach(function (sched) {
+        const isDraft = !!sched.isDraft;
+        const isEditing = isDraft || editingScheduleIds.has(sched.id);
+        const card = document.createElement('div');
+        card.className = 'rake-schedule' + (isEditing ? ' editing' : '');
+        card.setAttribute('data-schedule-id', sched.id);
+
+        const head = document.createElement('div');
+        head.className = 'rake-schedule-card-head';
+
+        if (isEditing) {
+          const eff = document.createElement('div');
+          eff.className = 'rake-edit-effective';
+          eff.innerHTML =
+            '<span class="label" style="font-size:0.72rem;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;">Effective From</span>' +
+            '<input type="datetime-local" data-field="effective" value="' + isoToDatetimeLocal(sched.effectiveFrom) + '">';
+          head.appendChild(eff);
+
+          const actions = document.createElement('div');
+          actions.className = 'rake-schedule-actions';
+          actions.innerHTML =
+            '<button class="btn btn-secondary btn-small" onclick="cancelEditRakeSchedule(\'' + sched.id + '\')">Cancel</button>' +
+            '<button class="btn btn-primary btn-small" onclick="saveRakeSchedule(\'' + sched.id + '\')">Save</button>';
+          head.appendChild(actions);
+        } else {
+          const eff = document.createElement('div');
+          eff.className = 'rake-schedule-eff';
+          eff.innerHTML = '<span class="label">Effective from</span>' + new Date(sched.effectiveFrom).toLocaleString();
+          head.appendChild(eff);
+
+          const actions = document.createElement('div');
+          actions.className = 'rake-schedule-actions';
+          actions.innerHTML =
+            '<button class="btn btn-secondary btn-small" onclick="editRakeSchedule(\'' + sched.id + '\')">Edit</button>' +
+            '<button class="btn btn-danger btn-small" onclick="deleteRakeSchedule(\'' + sched.id + '\')">Delete</button>';
+          head.appendChild(actions);
+        }
+
+        card.appendChild(head);
+
+        const list = document.createElement('div');
+        list.className = 'rake-bracket-list';
+        const brackets = (sched.brackets || []);
+
+        if (isEditing) {
+          brackets.forEach(function (b) { list.appendChild(buildBracketEditRow(b)); });
+          const addBtn = document.createElement('button');
+          addBtn.type = 'button';
+          addBtn.className = 'rake-add-bracket';
+          addBtn.textContent = '+ Add bracket';
+          addBtn.onclick = function () { addBracketRow(sched.id); };
+          list.appendChild(addBtn);
+        } else if (!brackets.length) {
+          const empty = document.createElement('p');
+          empty.style.fontSize = '0.8rem';
+          empty.style.color = 'var(--text2)';
+          empty.style.margin = '0';
+          empty.textContent = '(No brackets — winners will only have pennies floored, no extra rake.)';
+          list.appendChild(empty);
+        } else {
+          brackets.slice().sort(function (a, b) { return a.minNet - b.minNet; }).forEach(function (b) {
+            const row = document.createElement('div');
+            row.className = 'rake-bracket-row-readonly';
+            const lo = '$' + (b.minNet / 100).toFixed(2);
+            const hi = (b.maxNet === null || b.maxNet === undefined) ? 'and up' : '$' + (b.maxNet / 100).toFixed(2);
+            row.innerHTML =
+              '<span class="range">' + lo + ' &mdash; ' + hi + '</span>' +
+              '<span class="arrow">&rarr;</span>' +
+              '<span class="rake-amount">$' + (b.rake / 100).toFixed(2) + ' rake</span>';
+            list.appendChild(row);
+          });
+        }
+
+        card.appendChild(list);
+        listEl.appendChild(card);
+      });
+    }
+
     function renderOwnerDashboard() {
       if (!state.isOwner) return;
+      renderRakeSchedules();
       let total = 0;
       const perGame = [];
       state.games.forEach(g => {
         const hostRaw = g.results[RAKE_HOST] || 0;
-        const adj = getGameResultsWithRake(g.results);
+        const adj = getGameResultsWithRake(g.results, g.date);
         const hostAdj = adj[RAKE_HOST] || 0;
         const rake = hostAdj - hostRaw;
         total += rake;
@@ -3019,7 +3489,7 @@
       const balances = {};
       // Sum all game results with rake already applied per-game
       state.games.forEach(g => {
-        const adjResults = getGameResultsWithRake(g.results);
+        const adjResults = getGameResultsWithRake(g.results, g.date);
         Object.entries(adjResults).forEach(([player, net]) => {
           if (!balances[player]) balances[player] = 0;
           balances[player] += net;
@@ -4268,6 +4738,7 @@
         players: state.players, games: state.games, credits: state.credits,
         settledPayments: state.settledPayments, nickMemory: state.nickMemory,
         manualAdjustments: state.manualAdjustments, paymentHistory: state.paymentHistory,
+        rakeSchedules: state.rakeSchedules || [],
         handLogUploads: (state.handLogUploads || []).map(function (u) {
           return { id: u.id, filename: u.filename, date: u.date, handCount: u.handCount, csvText: u.csvText, mapping: u.mapping };
         }),
@@ -4292,6 +4763,7 @@
           state.nickMemory = data.nickMemory || {};
           state.manualAdjustments = data.manualAdjustments || [];
           state.paymentHistory = data.paymentHistory || [];
+          state.rakeSchedules = data.rakeSchedules || [];
           state.handLogUploads = data.handLogUploads || [];
           saveState();
           saveAnalytics();
